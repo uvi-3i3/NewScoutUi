@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { 
   Bell, Plus, ArrowUp, CheckCircle2, Clock, 
   Lock, Tent, ClipboardList, Award, Store,
@@ -17,6 +17,7 @@ export default function App() {
     natureBadge: 40,
     activity1Time: '4m 12s left'
   });
+
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-0 md:p-4 bg-[#EBE9E4] relative overflow-hidden">
       {/* Main App Container */}
@@ -122,9 +123,8 @@ function CampLevel({ config }: any) {
             </div>
           </div>
         </div>
-        <button className="relative shrink-0 bg-gradient-to-b from-[#7CAE41] to-[#5C8925] active:scale-95 transition-all text-white font-extrabold flex items-center gap-1.5 px-3 py-[6px] rounded-[10px] text-[13px] border-[1.5px] border-[#2A4315] shadow-[inset_0_2px_4px_rgba(255,255,255,0.4),_inset_0_-2px_0_rgba(0,0,0,0.2),_0_4px_8px_rgba(0,0,0,0.25)] outline-none mr-0.5">
-          <ArrowUp className="w-[16px] h-[16px] bg-white text-[#689332] rounded-full p-[2.5px] shadow-[0_1px_2px_rgba(0,0,0,0.2)]" strokeWidth={3.5} />
-          Upgrade
+        <button className="relative shrink-0 bg-gradient-to-b from-[#7CAE41] to-[#5C8925] hover:from-[#84B947] hover:to-[#619027] active:scale-95 transition-all flex items-center justify-center w-[44px] h-[44px] rounded-[14px] border-[1.5px] border-[#2A4315] shadow-[inset_0_2px_4px_rgba(255,255,255,0.5),_inset_0_-2px_0_rgba(0,0,0,0.25),_0_4px_10px_rgba(92,137,37,0.4)] outline-none mr-1 cursor-pointer group">
+          <ArrowUp className="w-[20px] h-[20px] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] group-hover:-translate-y-0.5 transition-transform duration-200" strokeWidth={4} />
         </button>
       </div>
     </div>
@@ -133,16 +133,22 @@ function CampLevel({ config }: any) {
 
 function ActivitiesMap({ config }: any) {
   const activities = [
-    { name: 'Campfire', emoji: '🔥', type: 'ready', desc: 'Collect rewards' },
-    { name: 'Foraging Bush', emoji: '🍒', type: 'active', status: config.activity1Time, desc: 'Gathering berries' },
-    { name: 'Wood Pile', emoji: '🪵', type: 'empty', desc: 'Add logs to start' },
-    { name: 'Cooking Pot', emoji: '🥘', type: 'ready', desc: 'Collect rewards' },
-    { name: 'Tent Area', emoji: '💤', type: 'resting', desc: 'Scouts are resting' },
-    { name: 'Fishing Pond', emoji: '🎣', type: 'locked', desc: 'Unlock at Level 5' },
+    { name: 'Campfire', emoji: '🔥', type: 'ready' },
+    { name: 'Foraging Bush', emoji: '🍒', type: 'active', status: config.activity1Time },
+    { name: 'Wood Pile', emoji: '🪵', type: 'empty' },
+    { name: 'Cooking Pot', emoji: '🥘', type: 'ready' },
+    { name: 'Tent Area', emoji: '💤', type: 'resting' },
+    { name: 'Fishing Pond', emoji: '🎣', type: 'locked' },
+    { name: 'Mushroom Patch', emoji: '🍄', type: 'ready' },
+    { name: 'Lookout Tower', emoji: '🔭', type: 'locked' },
+    { name: 'Honey Bear', emoji: '🍯', type: 'empty' },
   ];
 
   return (
-    <div className="bg-[#F1E4C3] rounded-[22px] p-3 pt-3.5 pb-2.5 relative overflow-hidden shadow-[0_6px_16px_rgba(180,140,90,0.15),_inset_0_2px_4px_rgba(255,255,255,0.5)] border-[1.5px] border-[#DBC19C] flex-1 min-h-0 flex flex-col justify-between">
+    <div className="bg-[#F1E4C3] rounded-[22px] p-3 pt-3.5 pb-2.5 relative overflow-hidden shadow-[0_6px_16px_rgba(180,140,90,0.15),_inset_0_2px_4px_rgba(255,255,255,0.5)] border-[1.5px] border-[#DBC19C] flex-1 min-h-0 flex flex-col justify-start saturate-150">
+      {/* Noise Texture Overlay */}
+      <div className="absolute inset-0 opacity-[0.04] pointer-events-none z-0 mix-blend-multiply" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
+      
       {/* Decorative SVG trail background */}
       <svg className="absolute inset-0 w-full h-full text-[#DCC79D] pointer-events-none z-0" style={{ opacity: 1 }}>
         <path d="M -10 50 Q 80 15 160 80 T 380 60" fill="transparent" stroke="currentColor" strokeWidth="2.5" strokeDasharray="6 6"/>
@@ -161,11 +167,11 @@ function ActivitiesMap({ config }: any) {
       {/* Wooden Signpost near bottom right */}
       <div className="absolute bottom-3 right-6 text-[18px] z-0 drop-shadow-sm">🪧</div>
 
-      <div className="flex items-center gap-2 mb-3 relative z-10 pl-5 shrink-0 mt-0.5">
+      <div className="flex items-center gap-2 mb-3 relative z-10 px-2 shrink-0 mt-1">
         <h2 className="text-[#304811] font-extrabold text-[17px] tracking-tight drop-shadow-sm">Camp Activities</h2>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-2 gap-y-2.5 relative z-10 flex-1 min-h-0 overflow-y-auto hide-scrollbar content-start pb-1">
+      <div className="flex flex-wrap justify-start content-start gap-[14px] relative z-10 px-2 mt-2">
         {activities.map((act) => (
           <ActivityCard key={act.name} {...act} />
         ))}
@@ -174,46 +180,45 @@ function ActivitiesMap({ config }: any) {
   );
 }
 
-function ActivityCard({ name, emoji, type, status, desc }: any) {
+function ActivityCard({ emoji, type }: any) {
   const isActive = type === 'active';
   const isLocked = type === 'locked';
   
   return (
-    <div className={`relative flex items-center bg-[#FEFCF3] rounded-[10px] py-1 pl-[2px] pr-3 shadow-[0_4px_10px_rgba(180,140,90,0.15),_inset_0_2px_6px_rgba(255,255,255,0.9)] border-[1.5px] ${isActive ? 'border-[#78A944] shadow-[0_4px_16px_rgba(120,169,68,0.35),_inset_0_2px_6px_rgba(255,255,255,0.9)] z-10' : 'border-[#DFCA9F]'} ${isLocked ? 'opacity-80 grayscale-[15%]' : ''} cursor-pointer transition-transform hover:scale-[1.02] h-[58px]`}>
+    <div className={`relative flex flex-col items-center justify-center bg-[#FEFCF3] w-[64px] h-[64px] rounded-[16px] shadow-[0_4px_8px_rgba(180,140,90,0.15),_inset_0_-3px_0_rgba(180,140,90,0.1),_inset_0_2px_4px_rgba(255,255,255,0.9)] border-[1.5px] ${isActive ? 'border-[#78A944] shadow-[0_4px_12px_rgba(120,169,68,0.35),_inset_0_-3px_0_rgba(120,169,68,0.15),_inset_0_2px_4px_rgba(255,255,255,0.9)] z-10 bg-white' : 'border-[#D1B88B] hover:bg-white hover:border-[#BEA273] hover:shadow-[0_4px_10px_rgba(180,140,90,0.22),_inset_0_-3px_0_rgba(180,140,90,0.1)]'} ${isLocked ? 'opacity-70 grayscale-[40%] hover:opacity-70 cursor-not-allowed' : 'cursor-pointer'} transition-all group`}>
       
-      {isActive && (
-        <div className="absolute -top-1.5 -right-1.5 bg-[#78A944] text-white rounded-[6px] w-[20px] h-[20px] flex items-center justify-center shadow-[0_2px_6px_rgba(0,0,0,0.2),_inset_0_1px_1px_rgba(255,255,255,0.4)] z-20 border-[1.5px] border-[#FEFCF3]">
-          <Clock className="w-3 h-3" strokeWidth={3} />
+      {/* Tiny corner indicators */}
+      {type === 'ready' && (
+        <div className="absolute -top-1.5 -right-1.5 bg-[#78A944] text-white rounded-[7px] w-[20px] h-[20px] flex items-center justify-center shadow-[0_2px_4px_rgba(0,0,0,0.25),_inset_0_1px_1px_rgba(255,255,255,0.4)] z-20 border-[1.5px] border-[#FEFCF3]">
+          <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={4} />
+        </div>
+      )}
+      {type === 'active' && (
+        <div className="absolute -top-1.5 -right-1.5 bg-[#78A944] text-white rounded-[7px] w-[20px] h-[20px] flex items-center justify-center shadow-[0_2px_4px_rgba(0,0,0,0.25),_inset_0_1px_1px_rgba(255,255,255,0.4)] z-20 border-[1.5px] border-[#FEFCF3]">
+          <Clock className="w-3 h-3" strokeWidth={3.5} />
+        </div>
+      )}
+      {type === 'empty' && (
+        <div className="absolute -top-1.5 -right-1.5 bg-[#A49C8B] text-white rounded-[7px] w-[20px] h-[20px] flex items-center justify-center shadow-[0_2px_4px_rgba(0,0,0,0.25),_inset_0_1px_1px_rgba(255,255,255,0.4)] z-20 border-[1.5px] border-[#FEFCF3]">
+          <Minus className="w-3 h-3" strokeWidth={4} />
+        </div>
+      )}
+      {type === 'resting' && (
+        <div className="absolute -top-1.5 -right-1.5 bg-[#5687C2] text-white rounded-[7px] w-[20px] h-[20px] flex items-center justify-center shadow-[0_2px_4px_rgba(0,0,0,0.25),_inset_0_1px_1px_rgba(255,255,255,0.4)] z-20 border-[1.5px] border-[#FEFCF3]">
+          <span className="text-[11px] font-extrabold pb-[1px] leading-none">Z</span>
+        </div>
+      )}
+      {type === 'locked' && (
+        <div className="absolute -top-1.5 -right-1.5 bg-[#8C8677] text-white rounded-[7px] w-[20px] h-[20px] flex items-center justify-center shadow-[0_2px_4px_rgba(0,0,0,0.25),_inset_0_1px_1px_rgba(255,255,255,0.4)] z-20 border-[1.5px] border-[#FEFCF3]">
+          <Lock className="w-3 h-3" strokeWidth={3} />
         </div>
       )}
       
-      <div className="relative shrink-0 flex items-center justify-center w-[40px] h-[40px] mx-[2px]">
-         <span className={`text-[32px] drop-shadow-md ${isLocked ? 'opacity-60' : ''}`}>{emoji}</span>
-      </div>
+      {/* Centered Emoji */}
+      <span className={`text-[32px] drop-shadow-md transition-transform hover:scale-110 active:scale-[0.95] ${isLocked ? 'opacity-60' : ''}`}>
+        {emoji}
+      </span>
 
-      <div className="flex flex-col justify-center min-w-0 flex-1 pl-1 py-[2px]">
-        <h3 className="text-[#2A4418] font-extrabold text-[11px] leading-tight truncate mb-[1px] tracking-tight">{name}</h3>
-        
-        <div className="flex items-center mb-[1.5px]">
-          {type === 'ready' && <><CheckCircle2 className="w-[12px] h-[12px] text-[#78A944] mr-[3px]" fill="#78A944" color="white" /><span className="text-[#658735] font-extrabold text-[9px]">Ready</span></>}
-          {type === 'active' && <><Clock className="w-[11px] h-[11px] text-[#635B47] mr-[3px] stroke-[2.5px]" /><span className="text-[#635B47] font-extrabold text-[9.5px] tracking-tight">{status}</span></>}
-          {type === 'empty' && <><div className="bg-[#A49C8B] rounded-[3px] w-[11px] h-[11px] flex items-center justify-center mr-[3px]"><Minus className="w-[7px] h-[7px] text-white" strokeWidth={3} /></div><span className="text-[#A49C8B] font-extrabold text-[9px]">Empty</span></>}
-          {type === 'resting' && <><span className="text-[#5687C2] text-[11px] font-extrabold tracking-tighter mr-[3px] drop-shadow-sm leading-none flex items-end">z<span className="text-[8px] mb-[1px]">Z</span><span className="text-[6px] mb-[3px]">z</span></span><span className="text-[#5687C2] font-extrabold text-[9px]">Resting</span></>}
-          {type === 'locked' && <><Lock className="w-[10px] h-[10px] text-[#A49C8B] mr-[3px] stroke-[2.5px]" /><span className="text-[#A49C8B] font-extrabold text-[9px]">Locked</span></>}
-        </div>
-
-        {isActive && (
-           <div className="w-full bg-[#E5DCC2] h-[4px] rounded-full mt-[1px] mb-[2px] shadow-[inset_0_1px_3px_rgba(0,0,0,0.1)]">
-             <div className="bg-[#78A944] h-full w-[45%] rounded-full shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)]"></div>
-           </div>
-        )}
-
-        <p className={`font-bold text-[8.5px] leading-tight truncate ${isActive ? 'mt-0' : 'mt-[1px]'} ${isActive ? 'text-[#817A66]' : 'text-[#978D76]'}`}>{desc}</p>
-      </div>
-
-      <div className="absolute right-[6px] top-1/2 -translate-y-1/2 text-[#D7D0BD]">
-         <ChevronRight className="w-[14px] h-[14px]" strokeWidth={3} />
-      </div>
     </div>
   );
 }
@@ -274,7 +279,7 @@ function BadgesSection({ config }: any) {
 
 function BottomNav() {
   return (
-    <div className="w-full bg-[#F5EAD4] flex justify-between items-center px-4 py-2 pb-5 md:pb-3 md:rounded-b-[36px] z-30 shadow-[0_-12px_24px_rgba(160,130,90,0.15),_inset_0_2px_4px_rgba(255,255,255,0.9)] border-t-[2px] border-[#E8D9BB] relative">
+    <div className="w-full bg-[#F5EAD4] flex justify-between items-center px-4 py-2 pb-5 md:pb-3 md:rounded-b-[36px] z-30 overflow-x-hidden shadow-[0_-12px_24px_rgba(160,130,90,0.15),_inset_0_2px_4px_rgba(255,255,255,0.9)] border-t-[2px] border-[#E8D9BB] relative">
       <NavItem icon={<Tent className="w-[20px] h-[20px]" fill="currentColor" strokeWidth={1.5} />} label="Camp" active />
       <NavItem icon={<ClipboardList className="w-[20px] h-[20px]" strokeWidth={2.2} />} label="Missions" />
       <NavItem icon={<Award className="w-[20px] h-[20px]" strokeWidth={2.2} />} label="Badges" />
