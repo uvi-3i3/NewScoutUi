@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import confetti from 'canvas-confetti';
 import { 
   Bell, Plus, ArrowUp, CheckCircle2, Clock, 
   Lock, Tent, ClipboardList, Award, Store,
@@ -55,13 +56,12 @@ interface Scout {
   level: number;
   emoji: string;
   assignedTo: string | null;
+  ability: string;
 }
 
 interface GameState {
   resources: Resources;
   campLvl: number;
-  campXp: number;
-  xpToNextLevel: number;
   activities: Activity[];
   badges: Badge[];
   missions: Mission[];
@@ -69,22 +69,27 @@ interface GameState {
   lastTickAt: number;
 }
 
+function getUpgradeCost(level: number) {
+  return {
+    coins: level * 50,
+    wood: level * 20
+  };
+}
+
 const INITIAL_STATE: GameState = {
   resources: { coins: 0, wood: 0, food: 0 },
   campLvl: 1,
-  campXp: 0,
-  xpToNextLevel: 50,
   lastTickAt: Date.now(),
   activities: [
-    { id: 'campfire', name: 'Campfire', emoji: '🔥', status: 'idle', durationSeconds: 3, startedAt: null, endsAt: null, reward: { coins: 5 }, xpReward: 10, unlockLevel: 1, restDurationSeconds: 2, restEndsAt: null },
-    { id: 'wood_pile', name: 'Wood Pile', emoji: '🪵', status: 'locked', durationSeconds: 10, startedAt: null, endsAt: null, reward: { wood: 10, coins: 2 }, xpReward: 15, unlockLevel: 2, restDurationSeconds: 5, restEndsAt: null },
-    { id: 'foraging_bush', name: 'Foraging Bush', emoji: '🍒', status: 'locked', durationSeconds: 20, startedAt: null, endsAt: null, reward: { food: 10 }, xpReward: 20, unlockLevel: 3, restDurationSeconds: 8, restEndsAt: null },
-    { id: 'tent_area', name: 'Tent Area', emoji: '⛺', status: 'locked', durationSeconds: 45, startedAt: null, endsAt: null, reward: { coins: 25 }, xpReward: 30, unlockLevel: 4, restDurationSeconds: 15, restEndsAt: null },
-    { id: 'cooking_pot', name: 'Cooking Pot', emoji: '🥘', status: 'locked', durationSeconds: 60, startedAt: null, endsAt: null, reward: { food: 25, coins: 10 }, xpReward: 40, unlockLevel: 5, restDurationSeconds: 10, restEndsAt: null },
-    { id: 'fishing_pond', name: 'Fishing Pond', emoji: '🎣', status: 'locked', durationSeconds: 90, startedAt: null, endsAt: null, reward: { food: 40, coins: 15 }, xpReward: 50, unlockLevel: 6, restDurationSeconds: 20, restEndsAt: null },
-    { id: 'mushroom_patch', name: 'Mushroom Patch', emoji: '🍄', status: 'locked', durationSeconds: 120, startedAt: null, endsAt: null, reward: { food: 50, coins: 25 }, xpReward: 60, unlockLevel: 7, restDurationSeconds: 30, restEndsAt: null },
-    { id: 'lookout_tower', name: 'Lookout Tower', emoji: '🔭', status: 'locked', durationSeconds: 300, startedAt: null, endsAt: null, reward: { coins: 100 }, xpReward: 100, unlockLevel: 8, restDurationSeconds: 60, restEndsAt: null },
-    { id: 'honey_bear', name: 'Honey Bear', emoji: '🍯', status: 'locked', durationSeconds: 180, startedAt: null, endsAt: null, reward: { food: 80, coins: 40 }, xpReward: 80, unlockLevel: 9, restDurationSeconds: 45, restEndsAt: null },
+    { id: 'campfire', name: 'Campfire', emoji: '🔥', status: 'idle', durationSeconds: 2, startedAt: null, endsAt: null, reward: { coins: 5 }, xpReward: 10, unlockLevel: 1, restDurationSeconds: 1, restEndsAt: null },
+    { id: 'wood_pile', name: 'Wood Pile', emoji: '🪵', status: 'locked', durationSeconds: 4, startedAt: null, endsAt: null, reward: { wood: 10, coins: 2 }, xpReward: 15, unlockLevel: 2, restDurationSeconds: 2, restEndsAt: null },
+    { id: 'foraging_bush', name: 'Foraging Bush', emoji: '🍒', status: 'locked', durationSeconds: 8, startedAt: null, endsAt: null, reward: { food: 10 }, xpReward: 20, unlockLevel: 3, restDurationSeconds: 3, restEndsAt: null },
+    { id: 'tent_area', name: 'Tent Area', emoji: '⛺', status: 'locked', durationSeconds: 15, startedAt: null, endsAt: null, reward: { coins: 25 }, xpReward: 30, unlockLevel: 4, restDurationSeconds: 4, restEndsAt: null },
+    { id: 'cooking_pot', name: 'Cooking Pot', emoji: '🥘', status: 'locked', durationSeconds: 25, startedAt: null, endsAt: null, reward: { food: 25, coins: 10 }, xpReward: 40, unlockLevel: 5, restDurationSeconds: 5, restEndsAt: null },
+    { id: 'fishing_pond', name: 'Fishing Pond', emoji: '🎣', status: 'locked', durationSeconds: 40, startedAt: null, endsAt: null, reward: { food: 40, coins: 15 }, xpReward: 50, unlockLevel: 6, restDurationSeconds: 8, restEndsAt: null },
+    { id: 'mushroom_patch', name: 'Mushroom Patch', emoji: '🍄', status: 'locked', durationSeconds: 60, startedAt: null, endsAt: null, reward: { food: 50, coins: 25 }, xpReward: 60, unlockLevel: 7, restDurationSeconds: 10, restEndsAt: null },
+    { id: 'lookout_tower', name: 'Lookout Tower', emoji: '🔭', status: 'locked', durationSeconds: 90, startedAt: null, endsAt: null, reward: { coins: 100 }, xpReward: 100, unlockLevel: 8, restDurationSeconds: 15, restEndsAt: null },
+    { id: 'honey_bear', name: 'Honey Bear', emoji: '🍯', status: 'locked', durationSeconds: 120, startedAt: null, endsAt: null, reward: { food: 80, coins: 40 }, xpReward: 80, unlockLevel: 9, restDurationSeconds: 20, restEndsAt: null },
   ],
   badges: [
     { id: 'fire', name: 'Fire Maker', progress: 0, type: 'in-progress', unlockLevel: 1 },
@@ -105,13 +110,27 @@ const INITIAL_STATE: GameState = {
     { id: 'm5', title: 'Unlock Fishing', icon: '🎣', reward: { xp: 200, coins: 500 }, current: 0, target: 1, status: 'go' },
   ],
   scouts: [
-    { id: 's1', name: 'Oliver', role: 'Camp Leader', level: 1, emoji: '🦊', assignedTo: null },
-    { id: 's2', name: 'Mia', role: 'Forager', level: 1, emoji: '🦌', assignedTo: null },
-    { id: 's3', name: 'Leo', role: 'Builder', level: 1, emoji: '🐻', assignedTo: null },
-    { id: 's4', name: 'Zoe', role: 'Cook', level: 1, emoji: '🐰', assignedTo: null },
-    { id: 's5', name: 'Sam', role: 'Fisher', level: 1, emoji: '🦦', assignedTo: null },
+    { id: 's1', name: 'Oliver', role: 'Camp Leader', level: 1, emoji: '🦊', assignedTo: null, ability: 'Speed (Time -20%)' },
+    { id: 's2', name: 'Mia', role: 'Forager', level: 1, emoji: '🦌', assignedTo: null, ability: 'Eagle Eye (+50% Food)' },
+    { id: 's3', name: 'Leo', role: 'Builder', level: 1, emoji: '🐻', assignedTo: null, ability: 'Strong (+50% Wood)' },
+    { id: 's4', name: 'Zoe', role: 'Cook', level: 1, emoji: '🐰', assignedTo: null, ability: 'Master Chef (Wait Time -30%)' },
+    { id: 's5', name: 'Sam', role: 'Fisher', level: 1, emoji: '🦦', assignedTo: null, ability: 'Patience (+50% Coins)' },
   ],
 };
+
+function getScoutModifiers(scoutId?: string | null) {
+  let speedMulti = 1;
+  let foodMulti = 1;
+  let woodMulti = 1;
+  let coinsMulti = 1;
+  let restMulti = 1;
+  if (scoutId === 's1') speedMulti = 0.8;
+  if (scoutId === 's2') foodMulti = 1.5;
+  if (scoutId === 's3') woodMulti = 1.5;
+  if (scoutId === 's4') restMulti = 0.7;
+  if (scoutId === 's5') coinsMulti = 1.5;
+  return { speedMulti, foodMulti, woodMulti, coinsMulti, restMulti };
+}
 
 const SAVE_KEY = 'scouts_game_v2';
 
@@ -120,7 +139,16 @@ function loadState(): GameState {
     const saved = localStorage.getItem(SAVE_KEY);
     if (!saved) return INITIAL_STATE;
     const parsed = JSON.parse(saved) as GameState;
-    return applyOfflineProgress(parsed);
+    // Overwrite with balanced config
+    const mergedActivities = parsed.activities.map(act => {
+      const initAct = INITIAL_STATE.activities.find(a => a.id === act.id);
+      return initAct ? { 
+        ...act, 
+        durationSeconds: initAct.durationSeconds, 
+        restDurationSeconds: initAct.restDurationSeconds 
+      } : act;
+    });
+    return applyOfflineProgress({ ...parsed, activities: mergedActivities });
   } catch {
     return INITIAL_STATE;
   }
@@ -250,44 +278,146 @@ export default function App() {
     }
   }
 
+  function handleUpgradeCamp() {
+    const cost = getUpgradeCost(game.campLvl);
+    if (game.resources.coins >= cost.coins && game.resources.wood >= cost.wood) {
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate([40, 60, 40, 60, 100]);
+      }
+      confetti({
+        particleCount: 100,
+        spread: 80,
+        origin: { y: 0.3 },
+        colors: ['#78A944', '#D58C28'],
+        disableForReducedMotion: true,
+      });
+      
+      setGame(prev => {
+        const currentCost = getUpgradeCost(prev.campLvl);
+        if (prev.resources.coins >= currentCost.coins && prev.resources.wood >= currentCost.wood) {
+          const newLvl = prev.campLvl + 1;
+          
+          const updatedActivities = prev.activities.map(a => {
+            if (a.status === 'locked' && a.unlockLevel <= newLvl) {
+              return { ...a, status: 'idle' as ActivityStatus };
+            }
+            return a;
+          });
+
+          const updatedBadges = updateBadgeProgress(prev.badges, 'upgrade', newLvl);
+          
+          return {
+            ...prev,
+            campLvl: newLvl,
+            resources: {
+              ...prev.resources,
+              coins: prev.resources.coins - currentCost.coins,
+              wood: prev.resources.wood - currentCost.wood,
+            },
+            activities: updatedActivities,
+            badges: updatedBadges
+          };
+        }
+        return prev;
+      });
+    }
+  }
+
+  function handleAssignScout(activityId: string, event?: React.MouseEvent) {
+    if (event) event.stopPropagation();
+    setGame(prev => {
+      const currentScout = prev.scouts.find(s => s.assignedTo === activityId);
+      const availableScouts = prev.scouts.filter(s => !s.assignedTo);
+      
+      const options = [null, ...availableScouts.map(s => s.id)];
+      if (currentScout) options.splice(1, 0, currentScout.id);
+      
+      const idx = options.indexOf(currentScout ? currentScout.id : null);
+      const nextId = options[(idx + 1) % options.length];
+
+      return {
+        ...prev,
+        scouts: prev.scouts.map(s => {
+          if (currentScout && s.id === currentScout.id && s.id !== nextId) {
+            return { ...s, assignedTo: null };
+          }
+          if (nextId && s.id === nextId) {
+            return { ...s, assignedTo: activityId };
+          }
+          return s;
+        })
+      };
+    });
+  }
+
   function handleStartActivity(activityId: string) {
     setGame(prev => {
       const now = Date.now();
+      const assignedScout = prev.scouts.find(s => s.assignedTo === activityId);
+      const mods = getScoutModifiers(assignedScout?.id);
       const updatedActivities = prev.activities.map(act => {
         if (act.id !== activityId || act.status !== 'idle') return act;
         return {
           ...act,
           status: 'active' as ActivityStatus,
           startedAt: now,
-          endsAt: now + act.durationSeconds * 1000,
+          endsAt: now + (act.durationSeconds * mods.speedMulti) * 1000,
         };
       });
       return { ...prev, activities: updatedActivities };
     });
   }
 
-  function handleCollectActivity(activityId: string) {
+  function handleSpeedUpActivity(activityId: string) {
+    setGame(prev => {
+      const updatedActivities = prev.activities.map(act => {
+        if (act.id !== activityId || act.status !== 'active' || !act.endsAt) return act;
+        const newEndsAt = act.endsAt - 1000; // Speed up by 1 second per tap! Addictive!
+        return {
+          ...act,
+          endsAt: Math.max(Date.now(), newEndsAt)
+        };
+      });
+      return { ...prev, activities: updatedActivities };
+    });
+  }
+
+  function handleCollectActivity(activityId: string, event?: React.MouseEvent) {
+    if (event) {
+      const rect = (event.target as HTMLElement).getBoundingClientRect();
+      const x = (rect.left + rect.width / 2) / window.innerWidth;
+      const y = (rect.top + rect.height / 2) / window.innerHeight;
+      confetti({
+        particleCount: 20,
+        spread: 60,
+        origin: { x, y },
+        colors: ['#78A944', '#D58C28', '#A48F70', '#8B5A2B'],
+        disableForReducedMotion: true,
+        ticks: 80,
+      });
+      
+      // Satisfying haptic pop-pop for collecting resources
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate([30, 50, 30]);
+      }
+    }
+
     setGame(prev => {
       const act = prev.activities.find(a => a.id === activityId);
       if (!act || act.status !== 'ready') return prev;
 
+      const assignedScout = prev.scouts.find(s => s.assignedTo === activityId);
+      const mods = getScoutModifiers(assignedScout?.id);
+
       const now = Date.now();
 
       const newResources: Resources = {
-        coins: prev.resources.coins + (act.reward.coins ?? 0),
-        wood:  prev.resources.wood  + (act.reward.wood  ?? 0),
-        food:  prev.resources.food  + (act.reward.food  ?? 0),
+        coins: prev.resources.coins + Math.floor((act.reward.coins ?? 0) * mods.coinsMulti),
+        wood:  prev.resources.wood  + Math.floor((act.reward.wood  ?? 0) * mods.woodMulti),
+        food:  prev.resources.food  + Math.floor((act.reward.food  ?? 0) * mods.foodMulti),
       };
 
-      let newXp = prev.campXp + act.xpReward;
       let newLvl = prev.campLvl;
-      let newXpToNext = prev.xpToNextLevel;
-
-      if (newXp >= newXpToNext) {
-        newXp -= newXpToNext;
-        newLvl += 1;
-        newXpToNext = Math.floor(newXpToNext * 1.5);
-      }
 
       const updatedActivities = prev.activities.map(a => {
         if (a.id === activityId) {
@@ -296,7 +426,7 @@ export default function App() {
             status: 'resting' as ActivityStatus,
             startedAt: null,
             endsAt: null,
-            restEndsAt: now + a.restDurationSeconds * 1000,
+            restEndsAt: now + (a.restDurationSeconds * mods.restMulti) * 1000,
           };
         }
         if (a.status === 'locked' && a.unlockLevel <= newLvl) {
@@ -311,9 +441,6 @@ export default function App() {
       return {
         ...prev,
         resources: newResources,
-        campXp: newXp,
-        campLvl: newLvl,
-        xpToNextLevel: newXpToNext,
         activities: updatedActivities,
         badges: updatedBadges,
         missions: updatedMissions,
@@ -322,25 +449,26 @@ export default function App() {
   }
 
   function handleClaimMission(missionId: string) {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate([30, 50, 30]);
+    }
+    confetti({
+      particleCount: 50,
+      spread: 60,
+      origin: { y: 0.6 },
+      colors: ['#78A944', '#D58C28', '#A48F70', '#8B5A2B'],
+      disableForReducedMotion: true,
+    });
+
     setGame(prev => {
       const mission = prev.missions.find(m => m.id === missionId);
       if (!mission || mission.status !== 'claim') return prev;
 
       const newResources: Resources = {
-        coins: prev.resources.coins + (mission.reward.coins ?? 0),
-        wood:  prev.resources.wood,
-        food:  prev.resources.food,
+        coins: prev.resources.coins + (mission.reward?.coins || 0),
+        wood:  prev.resources.wood + (mission.reward?.wood || 0),
+        food:  prev.resources.food + (mission.reward?.food || 0),
       };
-
-      let newXp = prev.campXp + (mission.reward.xp ?? 0);
-      let newLvl = prev.campLvl;
-      let newXpToNext = prev.xpToNextLevel;
-
-      if (newXp >= newXpToNext) {
-        newXp -= newXpToNext;
-        newLvl += 1;
-        newXpToNext = Math.floor(newXpToNext * 1.5);
-      }
 
       const updatedMissions = prev.missions.map(m =>
         m.id === missionId ? { ...m, status: 'done' as const } : m
@@ -349,9 +477,6 @@ export default function App() {
       return {
         ...prev,
         resources: newResources,
-        campXp: newXp,
-        campLvl: newLvl,
-        xpToNextLevel: newXpToNext,
         missions: updatedMissions,
       };
     });
@@ -361,8 +486,44 @@ export default function App() {
     <div className="min-h-screen w-full flex items-center justify-center p-0 md:p-4 bg-[#EBE9E4] relative overflow-hidden">
       {/* Main App Container */}
       <div 
-        className="w-full h-screen md:h-[760px] md:max-w-[360px] bg-[#FCF8ED] md:rounded-[36px] overflow-hidden md:shadow-[0_45px_100px_-20px_rgba(100,80,60,0.4)] flex flex-col font-sans relative md:scale-[0.87] transition-all origin-center"
+        className="w-full h-screen md:h-[760px] md:max-w-[360px] bg-[#F4EFE6] md:rounded-[36px] overflow-hidden md:shadow-[0_20px_60px_-15px_rgba(100,80,60,0.3)] flex flex-col font-sans relative md:scale-[0.87] origin-center"
       >
+        {/* Cozy Scout Map Background */}
+        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+          {/* Topographic Lines SVG */}
+          <svg className="absolute inset-0 w-full h-full text-[#C8BFA9] opacity-40" xmlns="http://www.w3.org/2000/svg">
+             <path d="M-50,50 Q100,-20 200,100 T450,50" fill="none" stroke="currentColor" strokeWidth="1.5" />
+             <path d="M-50,70 Q100,0 200,120 T450,70" fill="none" stroke="currentColor" strokeWidth="1" />
+             <path d="M-50,90 Q100,20 200,140 T450,90" fill="none" stroke="currentColor" strokeWidth="0.5" />
+             
+             <path d="M-20,300 Q150,250 250,400 T450,300" fill="none" stroke="currentColor" strokeWidth="1.5" />
+             <path d="M-20,320 Q150,270 250,420 T450,320" fill="none" stroke="currentColor" strokeWidth="1" />
+             <path d="M-20,340 Q150,290 250,440 T450,340" fill="none" stroke="currentColor" strokeWidth="0.5" />
+             
+             <path d="M200,600 Q300,550 400,700 T500,600" fill="none" stroke="currentColor" strokeWidth="1.5" />
+             <path d="M180,620 Q280,570 380,720 T480,620" fill="none" stroke="currentColor" strokeWidth="1" />
+          </svg>
+          
+          {/* Dotted Trail */}
+          <svg className="absolute inset-0 w-full h-full text-[#A89F88] opacity-30" xmlns="http://www.w3.org/2000/svg">
+             <path d="M40,150 Q150,300 280,220 T360,500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeDasharray="6 8" strokeLinecap="round" />
+             <circle cx="40" cy="150" r="4" fill="currentColor" />
+             <path d="M350,490 L370,510 M370,490 L350,510" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+          </svg>
+          
+          {/* Grid pattern */}
+          <div className="absolute inset-0 opacity-[0.15]" style={{backgroundImage: 'linear-gradient(#B8B09D 1px, transparent 1px), linear-gradient(90deg, #B8B09D 1px, transparent 1px)', backgroundSize: '40px 40px', backgroundPosition: 'center center'}}></div>
+          
+          {/* Compass / Map Decorations */}
+          <span className="absolute top-[10%] -right-12 text-[140px] opacity-[0.04] text-black drop-shadow-sm pointer-events-none leading-none">🧭</span>
+          <span className="absolute bottom-[20%] -left-8 text-[120px] opacity-[0.04] text-black drop-shadow-sm pointer-events-none leading-none">🌲</span>
+          
+          {/* Paper Shading / Fold Lines */}
+          <div className="absolute h-full w-[2px] bg-white opacity-[0.1] shadow-[0_0_10px_rgba(0,0,0,0.1)] left-1/3"></div>
+          <div className="absolute w-full h-[2px] bg-white opacity-[0.1] shadow-[0_0_10px_rgba(0,0,0,0.1)] top-1/2"></div>
+          
+          <div className="absolute inset-0 shadow-[inset_0_0_80px_rgba(150,130,110,0.2)] mix-blend-multiply border-[4px] border-[#E8DFC9] rounded-[36px]"></div>
+        </div>
         
         {/* Main Content */}
         <div className="flex-1 flex flex-col min-h-0 relative z-10 w-full">
@@ -374,13 +535,10 @@ export default function App() {
           {activeTab === 'Camp' && (
             <>
               <div className="flex-shrink-0">
-                <CampLevel campLvl={game.campLvl} campXp={game.campXp} xpToNextLevel={game.xpToNextLevel} />
+                <CampLevel campLvl={game.campLvl} resources={game.resources} onUpgrade={handleUpgradeCamp} />
               </div>
               <div className="px-4 mb-2 flex-1 min-h-0 relative z-10 flex flex-col">
-                <ActivitiesMap activities={game.activities} onStart={handleStartActivity} onCollect={handleCollectActivity} />
-              </div>
-              <div className="px-5 pb-3 flex-shrink-0">
-                <BadgesSection badges={game.badges} />
+                <ActivitiesMap activities={game.activities} scouts={game.scouts} onStart={handleStartActivity} onCollect={handleCollectActivity} onSpeedUp={handleSpeedUpActivity} onAssign={handleAssignScout} />
               </div>
             </>
           )}
@@ -414,9 +572,8 @@ function Header({ coins, wood, food, campLvl, onReset }: any) {
   return (
     <div className="flex items-center justify-between px-4 pt-4 pb-2">
       <div className="flex items-center gap-2.5">
-        <div className="w-[36px] h-[36px] bg-gradient-to-br from-[#A2C259] to-[#608722] rounded-[8px] flex items-center justify-center shadow-sm border-[1.5px] border-[#385315] relative overflow-hidden">
-          <div className="absolute inset-0 border-[1.5px] border-[#D8EB9A] rounded-[6px] opacity-30 pointer-events-none"></div>
-          <span className="text-[18px] drop-shadow-md relative z-10 leading-none pb-0.5">⚜️</span>
+        <div className="w-[36px] h-[36px] bg-[#78A944] rounded-[8px] flex items-center justify-center shadow-sm border border-[#557F26]">
+          <span className="text-[18px] relative z-10 leading-none pb-0.5">⚜️</span>
         </div>
         <h1 className="text-[20px] font-extrabold tracking-tight text-[#1E3310] uppercase">SCOUTS</h1>
       </div>
@@ -434,43 +591,22 @@ function Header({ coins, wood, food, campLvl, onReset }: any) {
 function ResourceBar({ resources }: any) {
   return (
     <div className="flex items-center gap-2 px-4 mb-2 shrink-0">
-      <div className="flex items-center justify-center bg-[#FEFCF3] rounded-[10px] py-1 px-2.5 flex-1 border-[1.5px] border-[#E2CBA3] shadow-[0_4px_10px_rgba(180,140,90,0.15),_inset_0_2px_4px_rgba(255,255,255,0.8)] transition-all hover:scale-[1.02] cursor-pointer">
-        <div className="w-[14px] h-[14px] bg-gradient-to-br from-[#F5CB50] to-[#E29D1D] rounded-[4px] flex items-center justify-center border border-[#BA7810] shadow-[inset_0_1px_rgba(255,255,255,0.4)] mr-1.5">
+      <div className="flex items-center justify-center bg-[#FEFCF3] rounded-lg py-1.5 px-2 flex-1 border border-[#E2D2B6] shadow-sm hover:bg-white transition-colors cursor-pointer">
+        <div className="w-[14px] h-[14px] bg-[#E29D1D] rounded-[3px] flex items-center justify-center border border-[#BA7810] mr-1.5">
            <span className="text-[7px] text-white">⚜️</span>
         </div>
-        <motion.span 
-          key={resources.coins}
-          initial={{ scale: 1.5, color: "#D58C28" }}
-          animate={{ scale: 1, color: "#383222" }}
-          className="font-extrabold text-[11px] truncate text-[#383222]"
-        >
-          {resources.coins}
-        </motion.span>
+        <span className="font-extrabold text-[11px] truncate text-[#383222]">{resources.coins}</span>
       </div>
-      <div className="flex items-center justify-center bg-[#FEFCF3] rounded-[10px] py-1 px-2 flex-1 border-[1.5px] border-[#E2CBA3] shadow-[0_4px_10px_rgba(180,140,90,0.15),_inset_0_2px_4px_rgba(255,255,255,0.8)] transition-all hover:scale-[1.02] cursor-pointer">
-        <span className="text-[14px] mr-1 drop-shadow-sm leading-none pt-0.5">🪵</span>
-        <motion.span 
-          key={resources.wood}
-          initial={{ scale: 1.5, color: "#8B5A2B" }}
-          animate={{ scale: 1, color: "#383222" }}
-          className="font-extrabold text-[11px] truncate text-[#383222]"
-        >
-          {resources.wood}
-        </motion.span>
+      <div className="flex items-center justify-center bg-[#FEFCF3] rounded-lg py-1.5 px-2 flex-1 border border-[#E2D2B6] shadow-sm hover:bg-white transition-colors cursor-pointer">
+        <span className="text-[14px] mr-1 leading-none pt-0.5">🪵</span>
+        <span className="font-extrabold text-[11px] truncate text-[#383222]">{resources.wood}</span>
       </div>
-      <div className="flex items-center justify-between bg-[#FEFCF3] rounded-[10px] py-[3px] pr-1 pl-2 flex-1 border-[1.5px] border-[#E2CBA3] shadow-[0_4px_10px_rgba(180,140,90,0.15),_inset_0_2px_4px_rgba(255,255,255,0.8)] transition-all hover:scale-[1.02] cursor-pointer">
+      <div className="flex items-center justify-between bg-[#FEFCF3] rounded-lg py-1 px-1 pl-2 flex-1 border border-[#E2D2B6] shadow-sm hover:bg-white transition-colors cursor-pointer">
         <div className="flex items-center">
-          <span className="text-[13px] mr-1 drop-shadow-sm leading-none pt-[1px]">🍞</span>
-          <motion.span 
-            key={resources.food}
-            initial={{ scale: 1.5, color: "#78A944" }}
-            animate={{ scale: 1, color: "#383222" }}
-            className="font-extrabold text-[11px] truncate text-[#383222]"
-          >
-            {resources.food}
-          </motion.span>
+          <span className="text-[13px] mr-1 leading-none pt-[1px]">🍞</span>
+          <span className="font-extrabold text-[11px] truncate text-[#383222]">{resources.food}</span>
         </div>
-        <div className="w-[18px] h-[18px] bg-[#E1DBCA] rounded-[6px] flex items-center justify-center text-[#556F37] hover:bg-[#D5CCAB] transition-colors shadow-sm shrink-0">
+        <div className="w-[18px] h-[18px] bg-[#E1DBCA] rounded text-[#556F37] flex items-center justify-center shrink-0">
           <Plus className="w-[12px] h-[12px]" strokeWidth={3} />
         </div>
       </div>
@@ -478,73 +614,64 @@ function ResourceBar({ resources }: any) {
   );
 }
 
-function CampLevel({ campLvl, campXp, xpToNextLevel }: any) {
-  const percent = Math.min(100, Math.max(0, (Number(campXp) / xpToNextLevel) * 100));
+function CampLevel({ campLvl, resources, onUpgrade }: any) {
+  const cost = getUpgradeCost(campLvl);
+  const canUpgrade = resources.coins >= cost.coins && resources.wood >= cost.wood;
+  const nextUnlock = INITIAL_STATE.activities.find(a => a.unlockLevel === campLvl + 1);
 
   return (
-    <div className="px-4 mb-3 shrink-0">
-      <div className="bg-[#FEFCF3] rounded-[16px] py-[10px] px-3 shadow-[0_6px_16px_rgba(180,140,90,0.15),_inset_0_2px_4px_rgba(255,255,255,0.8)] border-[1.5px] border-[#DFCA9F] flex items-center justify-between cursor-pointer transition-transform hover:scale-[1.01]">
-        <div className="flex items-center gap-3">
-          <div className="relative w-[54px] h-[50px] flex items-center justify-center text-[42px] drop-shadow-md ml-1">
-             <span className="absolute -left-2 top-0 text-[15px] drop-shadow-sm">🌲</span>
+    <div className="px-4 mb-4 shrink-0">
+      <div className="bg-[#FEFCF3] rounded-[24px] p-4 shadow-sm border-[2px] border-[#E2D2B6] flex items-center justify-between transition-all hover:shadow-md hover:bg-white cursor-default relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#F4E8D1] to-transparent opacity-50 rounded-full blur-2xl -translate-y-1/2 translate-x-1/4 pointer-events-none"></div>
+        <div className="flex items-center gap-4 relative z-10 w-full">
+          <div className="relative w-[64px] h-[64px] bg-[#EFE9DA] rounded-[18px] flex items-center justify-center text-[42px] drop-shadow-sm shrink-0 border border-[#DCCCAD] shadow-inner">
              🏕️
-             <span className="absolute space-x-1 bottom-0 -right-1 text-[12px]">🔥</span>
-             <span className="absolute -top-1 right-1 text-[18px]">🌲</span>
           </div>
-          <div className="pl-2 flex flex-col justify-center pb-0.5">
-            <h2 className="text-[#203411] font-extrabold text-[19px] tracking-tight leading-tight flex items-center gap-1 mb-1 relative">
-              <span className="text-[#B9C694] text-[15px] absolute -left-[20px] top-[1px]">🌿</span>
+          <div className="flex flex-col justify-center flex-1">
+            <h2 className="text-[#304811] font-black text-[22px] tracking-tight leading-none mb-1.5 flex items-center gap-2">
               Camp Level {campLvl}
-              <span className="text-[#B9C694] text-[15px] transform scale-x-[-1] absolute -right-[20px] top-[1px]">🌿</span>
             </h2>
-            <div className="flex flex-col gap-1 mt-0.5">
-              <span className="text-[#695F4D] text-[10px] font-extrabold tracking-wide">{campXp} / {xpToNextLevel} XP</span>
-              <div className="w-[115px] h-[6px] bg-[#DED6BC] rounded-full overflow-hidden shadow-[inset_0_1px_3px_rgba(0,0,0,0.1)]">
-                <div className="bg-[#659131] h-full rounded-full shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)]" style={{ width: `${percent}%` }}></div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[#8C7A5E] text-[11.5px] font-extrabold tracking-wide uppercase leading-none">Upgrade Cost:</span>
+              <div className="flex items-center gap-2.5">
+                 <div className={`flex items-center gap-1 bg-[#F5EAD4] px-2 py-1 rounded-md border border-[#E8D9BB] shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)] ${resources.coins >= cost.coins ? '' : 'opacity-60'}`}>
+                   <span className="text-[12px]">🪙</span>
+                   <span className={`text-[13px] font-black ${resources.coins >= cost.coins ? 'text-[#D58C28]' : 'text-[#A49C8B]'}`}>{cost.coins}</span>
+                 </div>
+                 <div className={`flex items-center gap-1 bg-[#F5EAD4] px-2 py-1 rounded-md border border-[#E8D9BB] shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)] ${resources.wood >= cost.wood ? '' : 'opacity-60'}`}>
+                   <span className="text-[12px]">🪵</span>
+                   <span className={`text-[13px] font-black ${resources.wood >= cost.wood ? 'text-[#8B5A2B]' : 'text-[#A49C8B]'}`}>{cost.wood}</span>
+                 </div>
               </div>
             </div>
           </div>
+          <div className="flex flex-col items-center justify-center relative z-10 ml-2">
+             <button 
+               onClick={onUpgrade}
+               disabled={!canUpgrade}
+               className={`relative shrink-0 flex items-center justify-center w-[52px] h-[52px] rounded-[16px] text-white transition-all ${canUpgrade ? 'bg-[#78A944] hover:bg-[#689439] active:scale-95 shadow-[0_4px_0_#557F26] hover:translate-y-[1px] hover:shadow-[0_3px_0_#557F26] active:translate-y-[4px] active:shadow-[0_0px_0_#557F26]' : 'bg-[#EAE0CB] cursor-not-allowed opacity-80 border-2 border-[#DCCCAD]'}`}
+             >
+               <ArrowUp className={`w-[26px] h-[26px] ${canUpgrade ? 'animate-bounce' : ''}`} strokeWidth={3.5} />
+             </button>
+             {nextUnlock && canUpgrade && <span className="absolute -bottom-2 -right-2 text-[20px] drop-shadow-lg pointer-events-none">{nextUnlock.emoji}</span>}
+          </div>
         </div>
-        <button className="relative shrink-0 bg-gradient-to-b from-[#7CAE41] to-[#5C8925] hover:from-[#84B947] hover:to-[#619027] active:scale-95 transition-all flex items-center justify-center w-[44px] h-[44px] rounded-[14px] border-[1.5px] border-[#2A4315] shadow-[inset_0_2px_4px_rgba(255,255,255,0.5),_inset_0_-2px_0_rgba(0,0,0,0.25),_0_4px_10px_rgba(92,137,37,0.4)] outline-none mr-1 cursor-pointer group">
-          <ArrowUp className="w-[20px] h-[20px] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] group-hover:-translate-y-0.5 transition-transform duration-200" strokeWidth={4} />
-        </button>
       </div>
     </div>
   );
 }
 
-function ActivitiesMap({ activities, onStart, onCollect }: any) {
+function ActivitiesMap({ activities, scouts, onStart, onCollect, onSpeedUp, onAssign }: any) {
   return (
-    <div className="bg-[#F1E4C3] rounded-[22px] p-3 pt-3.5 pb-2.5 relative overflow-hidden shadow-[0_6px_16px_rgba(180,140,90,0.15),_inset_0_2px_4px_rgba(255,255,255,0.5)] border-[1.5px] border-[#DBC19C] flex-1 min-h-0 flex flex-col justify-start saturate-150">
-      {/* Noise Texture Overlay */}
-      <div className="absolute inset-0 opacity-[0.04] pointer-events-none z-0 mix-blend-multiply" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
-      
-      {/* Decorative SVG trail background */}
-      <svg className="absolute inset-0 w-full h-full text-[#DCC79D] pointer-events-none z-0" style={{ opacity: 1 }}>
-        <path d="M -10 50 Q 80 15 160 80 T 380 60" fill="transparent" stroke="currentColor" strokeWidth="2.5" strokeDasharray="6 6"/>
-        <path d="M 20 180 Q 140 220 200 150 T 380 190" fill="transparent" stroke="currentColor" strokeWidth="2.5" strokeDasharray="6 6"/>
-        <path d="M -20 300 Q 90 270 180 340 T 400 300" fill="transparent" stroke="currentColor" strokeWidth="2.5" strokeDasharray="6 6"/>
-      </svg>
-      {/* Tiny decorative flowers/trees */}
-      <span className="absolute top-8 right-8 text-[#FFF6DB] text-[10px] z-0 drop-shadow-sm">✿ ✿</span>
-      <span className="absolute top-6 left-[35%] text-[#FFF6DB] text-[11px] z-0 drop-shadow-sm">✿</span>
-      <span className="absolute top-[48%] left-6 text-white text-[10px] opacity-80 z-0 drop-shadow-sm">❀</span>
-      <span className="absolute bottom-10 right-20 text-white text-[12px] opacity-90 z-0 drop-shadow-sm">✿</span>
-      <span className="absolute bottom-[20%] left-4 text-[#8C9A69] text-[13px] z-0 opacity-90 drop-shadow-sm">🌿</span>
-      <span className="absolute top-3 left-2 text-[#7A8A56] text-sm z-0 drop-shadow-sm">🌲</span>
-      <span className="absolute bottom-1 right-2 text-[#7A8A56] text-2xl z-0 drop-shadow-sm opacity-95">🌲</span>
-      
-      {/* Wooden Signpost near bottom right */}
-      <div className="absolute bottom-3 right-6 text-[18px] z-0 drop-shadow-sm">🪧</div>
-
-      <div className="flex items-center gap-2 mb-3 relative z-10 px-2 shrink-0 mt-1">
-        <h2 className="text-[#304811] font-extrabold text-[17px] tracking-tight drop-shadow-sm">Camp Activities</h2>
+    <div className="flex-1 min-h-0 flex flex-col justify-start">
+      <div className="flex items-center gap-2 mb-2 relative z-10 shrink-0 px-2 mt-1">
+        <h2 className="text-[#304811] font-extrabold text-[16px] tracking-tight ml-2">Camp Activities</h2>
       </div>
 
-      <div className="flex flex-wrap justify-start content-start gap-[14px] relative z-10 px-2 mt-2">
+      <div className="grid grid-cols-3 gap-3 relative z-10 px-4 mt-1 pb-4">
         <AnimatePresence>
           {activities.filter((act: Activity) => act.status !== 'locked').map((act: Activity) => (
-            <ActivityCard key={act.id} act={act} onStart={onStart} onCollect={onCollect} />
+            <ActivityCard key={act.id} act={act} scouts={scouts} onStart={onStart} onCollect={onCollect} onSpeedUp={onSpeedUp} onAssign={onAssign} />
           ))}
         </AnimatePresence>
       </div>
@@ -552,19 +679,35 @@ function ActivitiesMap({ activities, onStart, onCollect }: any) {
   );
 }
 
-function ActivityCard({ act, onStart, onCollect }: { act: Activity, onStart: (id: string) => void, onCollect: (id: string) => void }) {
+function ActivityCard({ act, scouts, onStart, onCollect, onSpeedUp, onAssign }: { 
+  act: Activity, 
+  scouts: any[],
+  onStart: (id: string) => void, 
+  onCollect: (id: string, e: React.MouseEvent) => void,
+  onSpeedUp?: (id: string) => void,
+  onAssign?: (id: string, e: React.MouseEvent) => void,
+  key?: React.Key
+}) {
   const { id, emoji, status, endsAt, name, reward, xpReward } = act;
   const isActive = status === 'active';
   const isLocked = status === 'locked';
+  const assignedScout = scouts?.find(s => s.assignedTo === id);
   const [showReward, setShowReward] = useState(false);
+  const [taps, setTaps] = useState<{id: string, x: number, y: number}[]>([]);
   
-  const handleClick = () => {
+  const handleClick = (e: React.MouseEvent) => {
     if (status === 'idle') {
       onStart(id);
     } else if (status === 'ready') {
       setShowReward(true);
-      onCollect(id);
+      onCollect(id, e);
       setTimeout(() => setShowReward(false), 2000);
+    } else if (status === 'active' && onSpeedUp) {
+      onSpeedUp(id);
+      const tapId = Math.random().toString(36).substr(2, 9);
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      setTaps(prev => [...prev, { id: tapId, x: e.clientX - rect.left, y: e.clientY - rect.top }]);
+      setTimeout(() => setTaps(prev => prev.filter(t => t.id !== tapId)), 600);
     }
   };
   
@@ -576,8 +719,38 @@ function ActivityCard({ act, onStart, onCollect }: { act: Activity, onStart: (id
       exit={{ opacity: 0, scale: 0.5 }}
       whileTap={isLocked || status === 'resting' ? {} : { scale: 0.92 }}
       onClick={handleClick} 
-      className={`relative flex flex-col items-center justify-center bg-[#FEFCF3] w-[64px] h-[64px] rounded-[16px] shadow-[0_4px_8px_rgba(180,140,90,0.15),_inset_0_-3px_0_rgba(180,140,90,0.1),_inset_0_2px_4px_rgba(255,255,255,0.9)] border-[1.5px] ${isActive ? 'border-[#78A944] shadow-[0_4px_12px_rgba(120,169,68,0.35),_inset_0_-3px_0_rgba(120,169,68,0.15),_inset_0_2px_4px_rgba(255,255,255,0.9)] z-10 bg-white' : 'border-[#D1B88B] hover:bg-white hover:border-[#BEA273] hover:shadow-[0_4px_10px_rgba(180,140,90,0.22),_inset_0_-3px_0_rgba(180,140,90,0.1)]'} ${(isLocked || status === 'resting') ? 'opacity-70 grayscale-[40%] hover:opacity-70 cursor-not-allowed' : 'cursor-pointer'} transition-all group`}
+      className={`relative flex flex-col items-center justify-center bg-[#FEFCF3] w-full min-h-[88px] h-fit pb-1 rounded-[18px] shadow-sm border ${isActive ? 'border-[#78A944] ring-4 ring-[#78A944]/20 bg-white z-10' : 'border-[#E2D2B6] hover:border-[#D1B88B] hover:bg-white'} ${(isLocked || status === 'resting') ? 'opacity-70 grayscale-[40%] hover:opacity-70 cursor-not-allowed' : 'cursor-pointer'} transition-all group pt-1`}
     >
+      {/* Scout Assignment Button */}
+      {!isLocked && (
+        <button
+          onClick={(e) => onAssign && onAssign(id, e)}
+          className={`absolute -top-1.5 -left-1.5 w-[24px] h-[24px] rounded-[8px] flex items-center justify-center shadow-[0_2px_4px_rgba(0,0,0,0.15),_inset_0_1px_1px_rgba(255,255,255,0.8)] border-[1.5px] border-[#FEFCF3] z-30 transition-all ${assignedScout ? 'bg-[#FFF9EA]' : 'bg-[#E2D2B6] hover:bg-[#CBB58B]'}`}
+        >
+          {assignedScout ? (
+            <span className="text-[13px] drop-shadow-sm leading-none pl-[1px]">{assignedScout.emoji}</span>
+          ) : (
+            <span className="text-[12px] text-[#A29780] font-black pointer-events-none">+</span>
+          )}
+        </button>
+      )}
+
+      {/* Floating Speed Up Indicators */}
+      <AnimatePresence>
+        {taps.map(tap => (
+          <motion.div
+            key={tap.id}
+            initial={{ opacity: 1, y: tap.y, x: tap.x, scale: 0.5 }}
+            animate={{ opacity: 0, y: tap.y - 40, scale: 1.2 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="absolute text-[#78A944] font-black pointer-events-none text-[14px] z-50 drop-shadow-sm"
+          >
+            -1s!
+          </motion.div>
+        ))}
+      </AnimatePresence>
+
       <AnimatePresence>
         {showReward && (
           <motion.div 
@@ -655,14 +828,20 @@ function ActivityCard({ act, onStart, onCollect }: { act: Activity, onStart: (id
       </AnimatePresence>
       
       {/* Centered Emoji */}
-      <span className={`text-[32px] drop-shadow-md ${isLocked ? 'opacity-60' : ''}`}>
+      <span className={`text-[28px] drop-shadow-md mb-0.5 ${isLocked ? 'opacity-60' : ''}`}>
         {emoji}
       </span>
+      
+      {/* Text Detail */}
+      <span className={`text-[9.5px] font-extrabold leading-tight tracking-tight text-center px-1 truncate w-[85%] ${isLocked ? 'text-[#8C8677]' : 'text-[#304811]'}`}>
+        {name}
+      </span>
+      
       {isActive && (
         <motion.div 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute -bottom-5 text-xs text-[#2A4418] font-bold whitespace-nowrap bg-white/80 rounded px-1 z-30 shadow-sm border border-[#78A944]/30 pointer-events-none"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-xs text-[#78A944] font-black whitespace-nowrap z-30 mt-0.5"
         >
           {formatTimeLeft(endsAt)}
         </motion.div>
@@ -671,132 +850,33 @@ function ActivityCard({ act, onStart, onCollect }: { act: Activity, onStart: (id
   );
 }
 
-const SMALL_BADGE_VISUALS: Record<string, any> = {
-  fire: { icon: <Flame className="w-[16px] h-[16px] text-white" strokeWidth={1} fill="white" />, colors: 'from-[#E4A034] to-[#C96C11]', emoji: '🔥' },
-  nature: { icon: <Leaf className="w-[16px] h-[16px] text-white" strokeWidth={1} fill="white" />, colors: 'from-[#77AB3F] to-[#43741B]', emoji: '🍃' },
-  trail: { icon: <Tent className="w-[16px] h-[16px] text-white" strokeWidth={1} fill="currentColor" />, colors: 'from-[#5687C2] to-[#2B578C]', emoji: '🏕️' },
-  fish: { icon: <span className="text-[14px]">🎣</span>, emoji: '🎣', colors: 'from-[#5687C2] to-[#2B578C]' },
-  cook: { icon: <span className="text-[14px]">🥘</span>, emoji: '🥘', colors: 'from-[#E4A034] to-[#C96C11]' },
-  wood: { icon: <span className="text-[14px]">🪵</span>, emoji: '🪵', colors: 'from-[#A67B5B] to-[#7A543A]' },
-  beast: { icon: <span className="text-[14px]">🐾</span>, emoji: '🐾', colors: 'from-[#77AB3F] to-[#43741B]' },
-  forage: { icon: <span className="text-[14px]">🍄</span>, emoji: '🍄', colors: 'from-[#C23B22] to-[#8A2411]' },
-  night: { icon: <span className="text-[14px]">🦉</span>, emoji: '🦉', colors: 'from-[#56227B] to-[#361351]' },
-};
-
-function BadgesSection({ badges }: any) {
-  const inProgressBadges = badges.filter((b: any) => b.type === 'in-progress');
-  const displayBadges = [...inProgressBadges];
-  
-  if (displayBadges.length < 2) {
-    const nextLocked = badges.find((b: any) => b.type === 'locked' && !displayBadges.includes(b));
-    if (nextLocked) displayBadges.push(nextLocked);
-  }
-  if (displayBadges.length < 2) {
-    const nextEarned = badges.find((b: any) => b.type === 'earned' && !displayBadges.includes(b));
-    if (nextEarned) displayBadges.push(nextEarned);
-  }
-
-  const b1 = displayBadges[0] || badges[0];
-  const b2 = displayBadges[1] || badges[1];
-  
-  const v1 = SMALL_BADGE_VISUALS[b1.id] || SMALL_BADGE_VISUALS['fire'];
-  const v2 = SMALL_BADGE_VISUALS[b2.id] || SMALL_BADGE_VISUALS['nature'];
-
-  const nextUnlock = badges.find((b: any) => b.type === 'locked');
-  return (
-    <div className="flex justify-between items-center px-1 gap-2 border border-transparent bg-transparent pb-1">
-      {/* Badge 1 */}
-      <div className="flex items-center gap-1.5 flex-1 min-w-0">
-        <div className={`w-8 h-8 shrink-0 bg-gradient-to-br ${v1.colors} rounded-[8px] flex items-center justify-center shadow-[0_3px_6px_rgba(228,160,52,0.3),_inset_0_1px_2px_rgba(255,255,255,0.4)] border-[1.5px] border-[#FCF8ED]`}>
-          {v1.icon}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[9.5px] font-extrabold text-[#2A4418] truncate leading-tight">{b1.name}</p>
-          <div className="flex items-center gap-1.5 mt-0.5">
-             <div className="w-full bg-[#EADFBD] h-[3.5px] rounded-full overflow-hidden shadow-inner flex-1">
-                <div className="bg-[#DB8D1E] h-full rounded-full shadow-[inset_0_1px_rgba(255,255,255,0.2)] transition-all duration-500" style={{ width: `${b1.progress}%` }}></div>
-             </div>
-             <span className="text-[8.5px] font-bold text-[#867B66] leading-none">{b1.progress}%</span>
-          </div>
-        </div>
-      </div>
-      
-      <div className="w-[1px] h-6 bg-[#EACD9B] shrink-0 mx-0.5"></div>
-
-      {/* Badge 2 */}
-      <div className="flex items-center gap-1.5 flex-1 min-w-0">
-        <div className={`w-8 h-8 shrink-0 bg-gradient-to-br ${v2.colors} rounded-[8px] flex items-center justify-center shadow-[0_3px_6px_rgba(119,171,63,0.3),_inset_0_1px_2px_rgba(255,255,255,0.4)] border-[1.5px] border-[#FCF8ED]`}>
-          {v2.icon}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[9.5px] font-extrabold text-[#2A4418] truncate leading-tight">{b2.name}</p>
-          <div className="flex items-center gap-1.5 mt-0.5">
-             <div className="w-full bg-[#EADFBD] h-[3.5px] rounded-full overflow-hidden shadow-inner flex-1">
-                <div className="bg-[#78A944] h-full rounded-full shadow-[inset_0_1px_rgba(255,255,255,0.2)] transition-all duration-500" style={{ width: `${b2.progress}%` }}></div>
-             </div>
-             <span className="text-[8.5px] font-bold text-[#867B66] leading-none">{b2.progress}%</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="w-[1px] h-6 bg-[#EACD9B] shrink-0 mx-0.5"></div>
-
-      {/* Next Unlock */}
-      <div className="flex items-center gap-1.5 shrink-0">
-         <div className="w-8 h-8 bg-[#E6D9B4] rounded-[8px] flex items-center justify-center text-[#958362] shadow-[inset_0_2px_4px_rgba(0,0,0,0.06),_0_1px_1px_rgba(255,255,255,0.7)] border border-[#CBB58B]">
-            <Award className="w-[16px] h-[16px] drop-shadow-sm" fill="currentColor" strokeWidth={1.5} />
-         </div>
-         <div className="flex flex-col justify-center">
-            <p className="text-[7.5px] font-extrabold uppercase tracking-wide text-[#908670] leading-none mb-[1px]">Next Unlock</p>
-            <p className="text-[9px] font-extrabold text-[#2A4418] leading-tight">{nextUnlock ? nextUnlock.name : 'All unlocked'}</p>
-            <p className="text-[7.5px] font-bold text-[#A29780] leading-none mt-[1px]">{nextUnlock ? `at Level ${nextUnlock.unlockLevel}` : ''}</p>
-         </div>
-      </div>
-    </div>
-  );
-}
-
 function MissionsTab({ missions, onClaim }: any) {
   const completedCount = missions.filter((m: any) => m.status === 'done').length;
 
   return (
     <div className="flex-1 min-h-0 relative flex flex-col w-full px-1 pt-1 mb-2">
-      {/* Background Wooden Board */}
-      <div className="absolute inset-x-2 top-0 bottom-0 bg-[#A67B5B] shadow-[inset_0_4px_12px_rgba(0,0,0,0.2)] -z-10 rounded-[20px]">
-          <div className="absolute inset-0 opacity-20 pointer-events-none mix-blend-multiply" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
-          {/* Wooden panels lines */}
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_20%,rgba(0,0,0,0.05)_21%,transparent_22%,transparent_40%,rgba(0,0,0,0.05)_41%,transparent_42%,transparent_60%,rgba(0,0,0,0.05)_61%,transparent_62%,transparent_80%,rgba(0,0,0,0.05)_81%,transparent_82%)] rounded-[20px]"></div>
-          {/* Board frame */}
-          <div className="absolute inset-0 border-[6px] border-[#8B5E3C] rounded-[20px] shadow-[inset_0_2px_8px_rgba(0,0,0,0.4)] pointer-events-none"></div>
-      </div>
+      <div className="flex-1 overflow-y-auto px-4 pt-3 pb-6 flex flex-col gap-3 relative z-10 w-full">
 
-      <div className="flex-1 overflow-y-auto hide-scrollbar px-3 pt-3 pb-6 flex flex-col gap-3 relative z-10 w-full rounded-[20px]">
-
-      <div className="px-3 pt-2 flex flex-col gap-2">
+      <div className="pt-2 flex flex-col gap-2">
         <div className="flex items-center justify-between px-1">
-          <h2 className="text-[#F5EAD4] font-extrabold text-[20px] tracking-tight drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)]">Missions</h2>
-          <span className="text-[#D1B88B] drop-shadow-sm text-sm">🪧</span>
+          <h2 className="text-[#304811] font-extrabold text-[20px] tracking-tight">Missions</h2>
+          <span className="text-[#304811] opacity-70 drop-shadow-sm text-sm">🪧</span>
         </div>
-        <div className="bg-[#FEFCF3] rounded-[16px] p-2.5 shadow-[0_4px_8px_rgba(0,0,0,0.2)] border-[1.5px] border-[#DBC19C] relative">
-          <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-[#C23B22] rounded-full shadow-sm border-2 border-[#FEFCF3] z-10"></div>
-          
-          <div className="flex justify-between items-center mb-1.5 px-1">
+        <div className="bg-[#FEFCF3] rounded-[16px] p-3 shadow-sm border border-[#DBC19C] relative">
+          <div className="flex justify-between items-center mb-2 px-1">
              <h2 className="text-[#304811] font-extrabold text-[15px] tracking-tight">Today's Trail</h2>
              <span className="text-[#78A944] font-extrabold text-[12px]">{completedCount} / {missions.length}</span>
           </div>
-          <div className="w-full h-[6px] bg-[#E5DCC2] rounded-full overflow-hidden shadow-[inset_0_1px_3px_rgba(0,0,0,0.1)]">
-            <div className="bg-[#78A944] h-full rounded-full shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)]" style={{ width: `${(completedCount / missions.length) * 100}%` }}></div>
+          <div className="w-full h-[6px] bg-[#EBE6CD] rounded-full overflow-hidden">
+            <div className="bg-[#78A944] h-full rounded-full transition-all duration-300" style={{ width: `${(completedCount / missions.length) * 100}%` }}></div>
           </div>
         </div>
       </div>
 
       <div className="px-3">
          {/* Featured Mission */}
-         <div className="bg-[#FEFCF3] rounded-[18px] p-3 shadow-[0_4px_10px_rgba(0,0,0,0.15)] border-[1.5px] border-[#DBC19C] relative flex items-center gap-3">
-           <div className="absolute -top-1.5 left-4 w-3 h-3 bg-[#E4A034] rounded-full shadow-sm border-[1.5px] border-white z-10"></div>
-           <div className="absolute -top-1.5 right-4 w-3 h-3 bg-[#E4A034] rounded-full shadow-sm border-[1.5px] border-white z-10"></div>
-           
-           <div className="w-[60px] h-[60px] bg-[#F1E4C3] rounded-[14px] flex items-center justify-center text-[32px] border-[1.5px] border-[#DBC19C] shrink-0">
+         <div className="bg-[#FEFCF3] rounded-2xl p-3 shadow-sm border border-[#DBC19C] relative flex items-center gap-3">
+           <div className="w-[60px] h-[60px] bg-[#F1E4C3] rounded-xl flex items-center justify-center text-[32px] border border-[#DBC19C] shrink-0">
              🎣
            </div>
            
@@ -811,7 +891,7 @@ function MissionsTab({ missions, onClaim }: any) {
            </div>
            
            <div className="shrink-0 flex items-center justify-center">
-             <button className="bg-gradient-to-b from-[#7CAE41] to-[#5C8925] text-white font-extrabold text-[12px] px-3 py-1.5 rounded-[10px] border-[1.5px] border-[#2A4315] shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),_0_2px_4px_rgba(0,0,0,0.2)] active:scale-95 transition-all outline-none">
+             <button className="bg-[#7CAE41] hover:bg-[#689439] text-white font-extrabold text-[12px] px-3 py-1.5 rounded-[10px] transition-all outline-none">
                GO
              </button>
            </div>
@@ -875,12 +955,10 @@ function SmallMissionCard({ icon, title, progress, reward, status, onClick }: an
   return (
     <motion.div 
       layout
-      className={`bg-[#FEFCF3] rounded-[14px] p-2 shadow-[0_2px_6px_rgba(0,0,0,0.1)] border-[1.5px] ${isClaim ? 'border-[#78A944]' : 'border-[#DBC19C]'} relative ${isDone ? 'opacity-60' : ''}`}
+      className={`bg-[#FEFCF3] rounded-[14px] p-2 shadow-sm border ${isClaim ? 'border-[#78A944]' : 'border-[#DBC19C]'} relative ${isDone ? 'opacity-60' : ''}`}
     >
-      <div className="absolute top-1 right-1/2 translate-x-1/2 w-2 h-2 bg-[#D1B88B] rounded-full shadow-[inset_0_1px_1px_rgba(0,0,0,0.3)] z-10"></div>
-      
       <div className="flex items-center gap-2 mb-1.5 mt-1">
-        <div className={`w-[32px] h-[32px] rounded-[10px] flex items-center justify-center text-[18px] border-[1.5px] shrink-0 ${isClaim ? 'bg-[#F2F7E6] border-[#78A944]' : 'bg-[#F1E4C3] border-[#DBC19C]'}`}>
+        <div className={`w-[32px] h-[32px] rounded-[10px] flex items-center justify-center text-[18px] border shrink-0 ${isClaim ? 'bg-[#F2F7E6] border-[#78A944]' : 'bg-[#F1E4C3] border-[#DBC19C]'}`}>
            {icon}
         </div>
         <div className="flex-1 min-w-0">
@@ -890,7 +968,7 @@ function SmallMissionCard({ icon, title, progress, reward, status, onClick }: an
       </div>
       
       <div className="flex items-center justify-between gap-1.5 mb-1.5">
-         <div className="flex-1 h-[4px] bg-[#E5DCC2] rounded-full overflow-hidden">
+         <div className="flex-1 h-[4px] bg-[#EBE6CD] rounded-full overflow-hidden">
            <motion.div 
              initial={{ width: 0 }}
              animate={{ width: `${percent}%` }}
@@ -901,19 +979,19 @@ function SmallMissionCard({ icon, title, progress, reward, status, onClick }: an
       </div>
       
       {isDone ? (
-        <button disabled className="w-full bg-gradient-to-b from-[#EAE0CB] to-[#DBC19C] text-[#8C7A5E] font-extrabold text-[10px] py-[3px] rounded-[8px] border-[1.2px] border-[#CBB58B] shadow-none">
+        <button disabled className="w-full bg-[#EAE0CB] text-[#8C7A5E] font-extrabold text-[10px] py-[3px] rounded-[8px] border border-[#CBB58B]">
           Done
         </button>
       ) : isClaim ? (
         <motion.button 
           whileTap={{ scale: 0.9 }}
           onClick={onClick} 
-          className="w-full bg-gradient-to-b from-[#7CAE41] to-[#5C8925] text-white font-extrabold text-[10px] py-[3px] rounded-[8px] border-[1.2px] border-[#2A4315] shadow-[inset_0_1px_2px_rgba(255,255,255,0.4)] transition-all"
+          className="w-full bg-[#7CAE41] hover:bg-[#689439] text-white font-extrabold text-[10px] py-[3px] rounded-[8px] transition-all"
         >
           Claim
         </motion.button>
       ) : (
-        <button disabled className="w-full bg-gradient-to-b from-[#FEFCF3] to-[#EAE0CB] text-[#5C8925] font-extrabold text-[10px] py-[3px] rounded-[8px] border-[1.2px] border-[#5C8925] shadow-sm opacity-50">
+        <button disabled className="w-full bg-white text-[#5C8925] font-extrabold text-[10px] py-[3px] rounded-[8px] border border-[#DCD1AD] opacity-50">
           GO
         </button>
       )}
@@ -937,17 +1015,17 @@ function BadgesTab({ badges }: any) {
   const earnedCount = badges.filter((b: any) => b.type === 'earned').length;
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar px-6 pt-6 pb-12 flex flex-col gap-6 relative z-10 w-full mb-2">
+    <div className="flex-1 min-h-0 overflow-y-auto px-6 pt-6 pb-12 flex flex-col gap-6 relative z-10 w-full mb-2">
       {/* Header */}
       <div className="flex items-center justify-between">
          <div>
-            <h2 className="text-[#3A5025] font-black text-[28px] tracking-tight mb-1">Badges</h2>
-            <p className="text-[#8C7A5E] text-[14px] font-bold">{earnedCount} of {badges.length} collected</p>
+            <h2 className="text-[#3A5025] font-extrabold text-[24px] tracking-tight mb-1">Badges</h2>
+            <p className="text-[#8C7A5E] text-[14px] font-medium">{earnedCount} of {badges.length} collected</p>
          </div>
       </div>
 
       {/* Grid */}
-      <div className="bg-[#FEFCF8] rounded-[24px] p-6 shadow-sm border border-[#DCCCAD]">
+      <div className="bg-white rounded-[24px] p-6 shadow-sm border border-[#DCCCAD]">
           <div className="grid grid-cols-3 gap-y-10 gap-x-4 justify-items-center">
              {badges.map((badge: any) => (
                 <BadgeTile key={badge.id} {...badge} />
@@ -964,49 +1042,67 @@ function BadgeTile({ id, name, progress, type }: any) {
   const visual = BADGE_VISUALS[id] || { emoji: '❔' };
   const { icon = visual.emoji, colors = '', emoji = visual.emoji } = visual;
   
+  const handleClick = (e: React.MouseEvent) => {
+    if (isEarned) {
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate([20, 30, 20]);
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const x = (rect.left + rect.width / 2) / window.innerWidth;
+      const y = (rect.top + rect.height / 2) / window.innerHeight;
+      confetti({
+        particleCount: 25,
+        spread: 40,
+        origin: { x, y },
+        colors: ['#E4A034', '#F3D581', '#ffffff'],
+        disableForReducedMotion: true,
+        ticks: 60,
+      });
+    } else if (!isLocked) {
+       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(10);
+    }
+  };
+
   return (
-    <div className="flex flex-col items-center justify-start relative group w-full max-w-[80px] cursor-pointer">
+    <div onClick={handleClick} className="flex flex-col items-center justify-start relative group w-full max-w-[80px] cursor-pointer">
        
-       <div className={`relative w-[72px] h-[72px] rounded-full flex items-center justify-center mb-3 shrink-0 transition-transform group-hover:scale-105 active:scale-95
-          ${isEarned ? 'shadow-[0_4px_12px_rgba(0,0,0,0.15)] bg-white border-[3px] border-[#FEFCF8]' : isLocked ? 'bg-[#EAE0CB] border-[2px] border-dashed border-[#C5B79F] shadow-inner' : 'bg-[#F4E8D1] border-[2px] border-[#DECAAA] shadow-sm'}`}>
+       <div className={`relative w-[64px] h-[64px] rounded-full flex items-center justify-center mb-3 shrink-0 transition-transform group-hover:scale-105 active:scale-95
+          ${isEarned ? 'shadow-sm bg-white border border-[#DCCCAD]' : isLocked ? 'bg-[#EAE0CB] border border-dashed border-[#C5B79F]' : 'bg-[#F4E8D1] border border-[#DECAAA]'}`}>
           
           {!isLocked && !isEarned && (
-             <svg className="absolute inset-[-2px] w-[72px] h-[72px] -rotate-90 pointer-events-none drop-shadow-sm">
-                <circle cx="36" cy="36" r="34" fill="none" stroke="#DCCCAD" strokeWidth="4" />
-                <circle cx="36" cy="36" r="34" fill="none" stroke="#E4A034" strokeWidth="4" strokeDasharray="213" strokeDashoffset={213 - (213 * progress) / 100} strokeLinecap="round" />
+             <svg className="absolute inset-[-2px] w-[64px] h-[64px] -rotate-90 pointer-events-none drop-shadow-sm">
+                <circle cx="32" cy="32" r="30" fill="none" stroke="#DCCCAD" strokeWidth="4" />
+                <circle cx="32" cy="32" r="30" fill="none" stroke="#E4A034" strokeWidth="4" strokeDasharray="188" strokeDashoffset={188 - (188 * progress) / 100} strokeLinecap="round" />
              </svg>
           )}
 
           {isEarned ? (
-             <div className={`w-[58px] h-[58px] rounded-full bg-gradient-to-br ${colors} flex items-center justify-center shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] relative overflow-hidden`}>
-                <div className="absolute inset-0 opacity-[0.15]" style={{backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 2px, #000 2px, #000 4px)'}}></div>
+             <div className={`w-[52px] h-[52px] rounded-full bg-gradient-to-br ${colors} flex items-center justify-center relative overflow-hidden`}>
                 <div className="relative z-10">{icon}</div>
              </div>
           ) : isLocked ? (
-             <span className="text-[32px] opacity-[0.3] grayscale-[70%] drop-shadow-none">{emoji}</span>
+             <span className="text-[28px] opacity-[0.3] grayscale-[70%]">{emoji}</span>
           ) : (
-             <div className={`w-[58px] h-[58px] rounded-full bg-gradient-to-br ${colors} flex items-center justify-center shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] opacity-[0.85] grayscale-[15%]`}>
+             <div className={`w-[52px] h-[52px] rounded-full bg-gradient-to-br ${colors} flex items-center justify-center opacity-[0.85] grayscale-[15%]`}>
                 {icon}
              </div>
           )}
 
           {isEarned && (
-             <div className="absolute -bottom-1 -right-1 z-20 w-[24px] h-[24px] bg-[#E4A034] rounded-full shadow-md flex items-center justify-center border-[2.5px] border-white text-white">
+             <div className="absolute -bottom-1 -right-1 z-20 w-[20px] h-[20px] bg-[#E4A034] rounded-full shadow-sm flex items-center justify-center border-[2px] border-white text-white">
                 <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={4} />
              </div>
           )}
 
           {isLocked && (
-             <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 z-10 w-[22px] h-[22px] bg-[#A49C8B] rounded-full shadow-sm flex items-center justify-center border-[2px] border-[#F4E8D1]">
-                <Lock className="w-3 h-3 text-white" strokeWidth={3} />
+             <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 z-10 w-[20px] h-[20px] bg-[#A49C8B] rounded-full flex items-center justify-center border-[2px] border-[#F4E8D1]">
+                <Lock className="w-2.5 h-2.5 text-white" strokeWidth={3} />
              </div>
           )}
        </div>
 
        <div className="text-center w-full px-1">
-          <h4 className={`font-extrabold text-[12px] leading-tight line-clamp-2 ${isLocked ? 'text-[#A49C8B]' : 'text-[#3A5025]'}`}>{name}</h4>
+          <h4 className={`font-medium text-[11px] leading-tight line-clamp-2 ${isLocked ? 'text-[#A49C8B]' : 'text-[#3A5025]'}`}>{name}</h4>
           {!isLocked && !isEarned && (
-             <span className="text-[#D58C28] font-bold text-[10px] mt-1 block bg-[#FEFCF3] rounded-full px-2 py-0.5 border border-[#E9DBB8] mx-auto w-fit shadow-sm">{progress}%</span>
+             <span className="text-[#D58C28] font-bold text-[10px] mt-1 block bg-white rounded-full px-2 py-0.5 border border-[#E9DBB8] mx-auto w-fit shadow-sm">{progress}%</span>
           )}
        </div>
     </div>
@@ -1023,43 +1119,25 @@ const SCOUT_VISUALS: Record<string, any> = {
 
 function ScoutsTab({ scouts }: any) {
   const displayScouts = Array.from({ length: 6 }).map((_, i) => scouts[i] ? { ...scouts[i], ...SCOUT_VISUALS[scouts[i].id] } : { locked: true, name: 'Empty', role: 'Vacant', level: 0, emoji: '+' });
-  const featured = displayScouts[0];
-  const gridScouts = displayScouts.slice(1);
 
   return (
-    <div className="flex-1 min-h-0 relative flex flex-col mb-2 w-full px-2 pt-2 pb-1">
-      {/* Background Canvas Board */}
-      <div className="absolute inset-0 bg-[#536936] shadow-[inset_0_4px_16px_rgba(0,0,0,0.4)] -z-10 rounded-[18px] border-[2.5px] border-[#3B4D24] overflow-hidden">
-          <div className="absolute inset-0 opacity-[0.25] mix-blend-multiply pointer-events-none" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
-          <div className="absolute inset-0 opacity-[0.05] pointer-events-none mix-blend-overlay" style={{backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 2px, #000 2px, #000 4px)'}}></div>
-      </div>
-
+    <div className="flex-1 min-h-0 relative flex flex-col mb-2 w-full px-1 pt-1">
       {/* Scrollable Area */}
-      <div className="flex-1 overflow-y-auto hide-scrollbar px-2 pt-2 pb-12 flex flex-col gap-5 relative z-10 w-full rounded-[18px]">
-      <div className="px-2 pt-1 mb-1">
-         <h2 className="text-[#F1E4C3] font-black text-[24px] tracking-wide flex items-center gap-2 drop-shadow-md pb-0.5">
-           Scout Roster
-         </h2>
+      <div className="flex-1 overflow-y-auto px-2 pt-2 pb-12 flex flex-col gap-4 relative z-10 w-full">
+      <div className="px-2 pt-2 mb-1">
+         <h2 className="text-[#304811] font-extrabold text-[20px] tracking-tight">Scouts</h2>
       </div>
 
-      {/* Team Summary - Pinned Paper */}
-      <div className="bg-[#FEF8EB] rounded-[4px] p-3 shadow-[0_4px_12px_rgba(0,0,0,0.3)] border border-[#DCCCAD] flex justify-between items-center relative transform -rotate-1 mx-2">
-         {/* Tape */}
-         <div className="absolute top-[-8px] left-[30%] -translate-x-1/2 w-8 h-[18px] bg-[#EFE3C6] opacity-90 rotate-[-4deg] shadow-sm flex items-center justify-center overflow-hidden border border-[#DCCCAD]">
-            <div className="absolute inset-0 opacity-10 mix-blend-multiply" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
+      {/* Team Summary */}
+      <div className="bg-[#FEFCF3] rounded-2xl p-3 shadow-sm border border-[#DBC19C] flex justify-between items-center relative mx-1">
+         <div className="flex flex-col z-10">
+            <h3 className="text-[#304811] font-extrabold text-[15px] tracking-tight">Team Overview</h3>
+            <span className="text-[#7A6C56] text-[12px] font-bold">{scouts.length} / 6 Recruited</span>
          </div>
-         <div className="absolute top-[-8px] right-[20%] w-8 h-[18px] bg-[#D46C6C] opacity-80 rotate-[3deg] shadow-sm flex items-center justify-center overflow-hidden border border-[#B84E4E]">
-            <div className="absolute inset-0 opacity-10 mix-blend-multiply" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
-         </div>
-
-         <div className="flex flex-col z-10 pt-1 px-1">
-            <h3 className="text-[#3A5025] font-black text-[14px] uppercase tracking-tight">Team Overview</h3>
-            <span className="text-[#A48F70] text-[11px] font-bold">{scouts.length} of 6 Recruited</span>
-         </div>
-         <div className="flex gap-4 z-10 pr-2 pt-1">
+         <div className="flex gap-4 z-10">
              <div className="flex flex-col items-end">
                 <span className="text-[#A48F70] text-[9.5px] font-extrabold uppercase">Power</span>
-                <span className="text-[#D58C28] font-black text-[15px] drop-shadow-sm leading-tight mt-[1px]">{scouts.reduce((sum: number, s: Scout) => sum + s.level * 10, 0)} <span className="text-xs">⚔️</span></span>
+                <span className="text-[#D58C28] font-black text-[15px] leading-tight flex items-center gap-1">{scouts.reduce((sum: number, s: Scout) => sum + s.level * 10, 0)} <span className="text-[12px]">⚔️</span></span>
              </div>
              <div className="flex flex-col items-end">
                 <span className="text-[#A48F70] text-[9.5px] font-extrabold uppercase">Energy</span>
@@ -1068,79 +1146,44 @@ function ScoutsTab({ scouts }: any) {
          </div>
       </div>
 
-      {/* Featured Scout - Large Polaroid */}
-      <div className="bg-[#FEFcf5] p-3 pb-4 shadow-[0_8px_20px_rgba(0,0,0,0.5)] relative flex flex-col transform rotate-1 mx-2 mt-2 border-[1px] border-[#E8E4D9]">
-         {/* Push Pin */}
-         <div className="absolute top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-[#E4A034] shadow-[0_2px_4px_rgba(0,0,0,0.4),_inset_0_1px_2px_rgba(255,255,255,0.4)] border border-[#C96C11] z-20 flex items-center justify-center">
-            <div className="w-1.5 h-1.5 rounded-full bg-white opacity-60 absolute top-[2px] right-[2px]"></div>
-         </div>
-
-         <div className="w-full bg-[#EFE9DA] rounded-[2px] aspect-square border-[1.5px] border-[#DCCCAD] flex flex-col items-center justify-center relative overflow-hidden mb-3 shadow-inner">
-             {/* Subtle background lines/texture */}
-             <div className="absolute inset-0 opacity-[0.2]" style={{backgroundImage: 'radial-gradient(circle, #000 1px, transparent 1px)', backgroundSize: '8px 8px'}}></div>
-             
-             {/* Character */}
-             <div className="text-[76px] drop-shadow-lg z-10 hover:scale-110 active:scale-95 transition-transform cursor-pointer">{featured.emoji}</div>
-             
-             {/* Optional Nature Props */}
-             <span className="absolute bottom-2 right-2 text-2xl opacity-80 filter drop-shadow-sm pointer-events-none">🌲</span>
-             <span className="absolute bottom-1 left-2 text-xl opacity-80 filter drop-shadow-sm z-20 pointer-events-none">🍃</span>
-         </div>
-         
-         <div className="w-full flex justify-between items-end px-1 mt-1">
-             <div className="flex flex-col">
-                <span className="font-serif italic text-[#A48F70] text-[15px] leading-none mb-1 text-left line-clamp-1">{featured.role}</span>
-                <h2 className="font-black text-[28px] text-[#2A4418] leading-none tracking-tight font-serif uppercase">{featured.name}</h2>
-             </div>
-             <div className="flex flex-col items-end pb-1 pr-1 shrink-0">
-                 <div className="bg-[#3A5025] text-[#F1E4C3] px-2 py-0.5 rounded-[4px] font-black text-[14px] shadow-sm transform -rotate-2 border border-[#8BA667]">Lv. {featured.level}</div>
-             </div>
-         </div>
-         
-         <div className="w-full flex gap-2 mt-4 relative z-10">
-             <button className="flex-1 bg-transparent border-[2.5px] border-[#D58C28] text-[#D58C28] font-black text-[14px] py-1.5 rounded-[8px] transform active:scale-95 transition-all outline-none">
-                TRAIN
-             </button>
-             <button className="flex-1 bg-gradient-to-b from-[#78A944] to-[#5A8726] text-white font-black text-[14px] py-1.5 rounded-[8px] shadow-[0_2px_4px_rgba(0,0,0,0.2)] border-[1px] border-[#4A731B] transform active:scale-95 transition-all outline-none">
-                ASSIGN
-             </button>
-         </div>
-      </div>
-
-      {/* Scout Grid */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-7 px-1 mt-3 pb-8">
-         {gridScouts.map((scout, i) => (
-             <div key={i} className={`bg-[#FEFcf5] p-2 pb-3 shadow-[0_4px_12px_rgba(0,0,0,0.4)] border-[1px] border-[#E8E4D9] flex flex-col relative transform ${i % 2 === 0 ? '-rotate-2' : 'rotate-2'} transition-transform active:scale-95 cursor-pointer hover:shadow-[0_8px_16px_rgba(0,0,0,0.5)] hover:scale-105 hover:z-20`}>
-                 {/* Tape piece */}
-                 <div className={`absolute -top-3 left-1/2 -translate-x-1/2 w-8 h-4 opacity-90 z-20 shadow-sm border border-black/10 ${i % 3 === 0 ? 'bg-[#D46C6C] rotate-[-5deg]' : i%2 === 0 ? 'bg-[#6CA8D4] rotate-[5deg]' : 'bg-[#EFE3C6] rotate-[2deg]'}`}>
-                    <div className="absolute inset-0 opacity-10 mix-blend-multiply" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
-                 </div>
-
-                 <div className={`w-full aspect-square flex items-center justify-center rounded-[2px] border-[1.5px] border-[#DCCCAD] mb-2 shadow-inner relative overflow-hidden ${scout.locked ? 'bg-[#EAE0CB]' : 'bg-[#EFE9DA]'}`}>
-                     {!scout.locked && <div className="absolute inset-0 opacity-[0.2]" style={{backgroundImage: 'radial-gradient(circle, #000 1px, transparent 1px)', backgroundSize: '6px 6px'}}></div>}
+      {/* Scout List */}
+      <div className="flex flex-col gap-3 px-1 mt-1 pb-8">
+         {displayScouts.map((scout, i) => (
+             <div key={i} className={`bg-white p-3 shadow-sm rounded-[16px] border ${scout.locked ? 'border-[#EAE0CB] opacity-70 cursor-not-allowed' : 'border-[#E8E4D9] hover:shadow-md cursor-pointer hover:-translate-y-0.5'} flex items-center gap-3 relative transition-all active:scale-[0.98]`}>
+                 
+                 <div className={`w-[56px] h-[56px] flex-shrink-0 flex items-center justify-center rounded-[14px] border relative overflow-hidden ${scout.locked ? 'bg-[#EAE0CB] border-[#DCCCAD]' : `bg-gradient-to-br ${scout.color || ''} border-white shadow-inner`}`}>
+                     {!scout.locked && <div className="absolute inset-0 opacity-[0.1]" style={{backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '6px 6px'}}></div>}
                      {scout.locked ? (
-                         <Lock className="w-8 h-8 text-[#A49C8B] opacity-50" strokeWidth={2.5}/>
+                         <Lock className="w-5 h-5 text-[#A49C8B] opacity-50" strokeWidth={2.5}/>
                      ) : (
-                         <div className="text-[44px] drop-shadow-md z-10 transform translate-y-1">{scout.emoji}</div>
+                         <div className="text-[32px] drop-shadow-sm z-10 font-emoji">{scout.emoji}</div>
                      )}
                  </div>
                  
                  {scout.locked ? (
-                     <div className="text-center font-serif italic text-[#A49C8B] text-[13px] opacity-70 mt-1">Vacant</div>
+                     <div className="flex-1 min-w-0">
+                         <div className="font-extrabold text-[#A49C8B] text-[15px] opacity-70">Vacant Tent</div>
+                         <span className="text-[#A49C8B] text-[11px] font-bold opacity-60">Unlock at next level</span>
+                     </div>
                  ) : (
-                     <div className="flex flex-col px-1 justify-between h-full">
-                         <span className="font-serif italic text-[#A48F70] text-[11px] block leading-none mb-1 text-left truncate">{scout.role}</span>
-                         <div className="flex justify-between items-end mt-1">
-                            <h4 className="font-black text-[#2A4418] text-[16px] leading-none uppercase tracking-tight font-serif truncate mr-1">{scout.name}</h4>
-                            <div className="bg-[#3A5025] text-[#F1E4C3] font-black text-[10px] px-1.5 py-0.5 rounded-[4px] leading-tight border border-[#8BA667] shadow-sm transform -rotate-3 shrink-0">L.{scout.level}</div>
+                     <div className="flex-1 min-w-0 flex flex-col justify-center relative">
+                         {scout.assignedTo && (
+                             <span className="absolute right-0 bottom-0 text-[10px] font-black text-[#E4A034] bg-[#FFF9EA] px-2 py-0.5 rounded-md border border-[#E9DBB8] shrink-0 uppercase tracking-wide">
+                               Working
+                             </span>
+                         )}
+                         <div className="flex justify-between items-start mb-0.5">
+                             <h4 className="font-extrabold text-[#2A4418] text-[16px] leading-tight truncate pr-2">{scout.name}</h4>
+                             <div className="bg-[#FEFCF3] border border-[#E2D2B6] text-[#5C8925] font-extrabold text-[10px] px-1.5 py-0.5 rounded-md leading-none shrink-0 shadow-sm mt-0.5">L.{scout.level}</div>
                          </div>
+                         <span className="font-bold text-[#A48F70] text-[11.5px] block leading-none mb-1.5 truncate uppercase tracking-wide">{scout.role}</span>
+                         <span className="text-[#78A944] bg-[#F1F6EC] text-[10.5px] font-bold px-2 py-1 rounded inline-block w-fit truncate max-w-full">✨ {scout.ability}</span>
                      </div>
                  )}
              </div>
          ))}
       </div>
-
-    </div>
+      </div>
     </div>
   );
 }
@@ -1236,7 +1279,7 @@ function ShopTab() {
 
 function BottomNav({ activeTab, setActiveTab }: any) {
   return (
-    <div className="w-full bg-[#F5EAD4] flex justify-between items-center px-4 py-2 pb-5 md:pb-3 md:rounded-b-[36px] z-30 overflow-x-hidden shadow-[0_-12px_24px_rgba(160,130,90,0.15),_inset_0_2px_4px_rgba(255,255,255,0.9)] border-t-[2px] border-[#E8D9BB] relative">
+    <div className="w-full bg-[#F5EAD4] flex justify-between items-center px-4 py-2 flex-grow-0 pb-5 md:pb-3 md:rounded-b-[36px] z-30 border-t border-[#E8D9BB] relative">
       <NavItem icon={<Tent className="w-[20px] h-[20px]" fill="currentColor" strokeWidth={1.5} />} label="Camp" active={activeTab === 'Camp'} onClick={() => setActiveTab('Camp')} />
       <NavItem icon={<ClipboardList className="w-[20px] h-[20px]" strokeWidth={2.2} />} label="Missions" active={activeTab === 'Missions'} onClick={() => setActiveTab('Missions')} />
       <NavItem icon={<Award className="w-[20px] h-[20px]" strokeWidth={2.2} />} label="Badges" active={activeTab === 'Badges'} onClick={() => setActiveTab('Badges')} />
@@ -1256,14 +1299,14 @@ function NavItem({ icon, label, active, onClick }: { icon: React.ReactNode; labe
       {active && (
         <motion.div 
           layoutId="tabIndicator"
-          className="absolute inset-x-0 -top-1 bottom-0 bg-[#EFE8D0] border-[1.5px] border-[#DCD1AD] shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),_0_2px_6px_rgba(180,150,100,0.15)] rounded-[14px] z-0"
+          className="absolute inset-x-0 -top-1 bottom-0 bg-[#EFE8D0] border border-[#DCD1AD] shadow-sm rounded-xl z-0"
         />
       )}
       <div className="relative z-10 flex flex-col items-center gap-[4px] mt-0.5">
         <motion.div animate={active ? { y: -2 } : { y: 0 }}>
           {icon}
         </motion.div>
-        <span className="text-[9.5px] font-extrabold tracking-wide drop-shadow-sm">{label}</span>
+        <span className="text-[9.5px] font-extrabold tracking-wide">{label}</span>
       </div>
     </motion.div>
   );
