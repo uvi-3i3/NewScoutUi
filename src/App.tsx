@@ -7,242 +7,10 @@ import {
   Flame, Leaf, ChevronRight, Minus, User, RotateCcw
 } from 'lucide-react';
 
-// --- TYPES ---
-type ActivityStatus = 'idle' | 'active' | 'ready' | 'locked' | 'resting';
-
-interface Activity {
-  id: string;
-  name: string;
-  emoji: string;
-  status: ActivityStatus;
-  durationSeconds: number;
-  startedAt: number | null;
-  endsAt: number | null;
-  reward: Partial<Resources>;
-  xpReward: number;
-  unlockLevel: number;
-  restDurationSeconds: number;
-  restEndsAt: number | null;
-}
-
-interface Resources {
-  coins: number;
-  wood: number;
-  food: number;
-}
-
-interface Badge {
-  id: string;
-  name: string;
-  progress: number;
-  type: 'locked' | 'in-progress' | 'earned';
-  unlockLevel: number;
-}
-
-interface Mission {
-  id: string;
-  title: string;
-  icon: string;
-  reward: Partial<Resources> & { xp?: number; gems?: number };
-  current: number;
-  target: number;
-  status: 'go' | 'claim' | 'done';
-}
-
-interface Scout {
-  id: string;
-  name: string;
-  role: string;
-  level: number;
-  emoji: string;
-  assignedTo: string | null;
-  ability: string;
-}
-
-interface GameState {
-  resources: Resources;
-  campLvl: number;
-  activities: Activity[];
-  badges: Badge[];
-  missions: Mission[];
-  scouts: Scout[];
-  lastTickAt: number;
-}
-
-function getUpgradeCost(level: number) {
-  return {
-    coins: level * 50,
-    wood: level * 20
-  };
-}
-
-const INITIAL_STATE: GameState = {
-  resources: { coins: 0, wood: 0, food: 0 },
-  campLvl: 1,
-  lastTickAt: Date.now(),
-  activities: [
-    { id: 'campfire', name: 'Campfire', emoji: '🔥', status: 'idle', durationSeconds: 2, startedAt: null, endsAt: null, reward: { coins: 5 }, xpReward: 10, unlockLevel: 1, restDurationSeconds: 1, restEndsAt: null },
-    { id: 'wood_pile', name: 'Wood Pile', emoji: '🪵', status: 'locked', durationSeconds: 4, startedAt: null, endsAt: null, reward: { wood: 10, coins: 2 }, xpReward: 15, unlockLevel: 2, restDurationSeconds: 2, restEndsAt: null },
-    { id: 'foraging_bush', name: 'Foraging Bush', emoji: '🍒', status: 'locked', durationSeconds: 8, startedAt: null, endsAt: null, reward: { food: 10 }, xpReward: 20, unlockLevel: 3, restDurationSeconds: 3, restEndsAt: null },
-    { id: 'tent_area', name: 'Tent Area', emoji: '⛺', status: 'locked', durationSeconds: 15, startedAt: null, endsAt: null, reward: { coins: 25 }, xpReward: 30, unlockLevel: 4, restDurationSeconds: 4, restEndsAt: null },
-    { id: 'cooking_pot', name: 'Cooking Pot', emoji: '🥘', status: 'locked', durationSeconds: 25, startedAt: null, endsAt: null, reward: { food: 25, coins: 10 }, xpReward: 40, unlockLevel: 5, restDurationSeconds: 5, restEndsAt: null },
-    { id: 'fishing_pond', name: 'Fishing Pond', emoji: '🎣', status: 'locked', durationSeconds: 40, startedAt: null, endsAt: null, reward: { food: 40, coins: 15 }, xpReward: 50, unlockLevel: 6, restDurationSeconds: 8, restEndsAt: null },
-    { id: 'mushroom_patch', name: 'Mushroom Patch', emoji: '🍄', status: 'locked', durationSeconds: 60, startedAt: null, endsAt: null, reward: { food: 50, coins: 25 }, xpReward: 60, unlockLevel: 7, restDurationSeconds: 10, restEndsAt: null },
-    { id: 'lookout_tower', name: 'Lookout Tower', emoji: '🔭', status: 'locked', durationSeconds: 90, startedAt: null, endsAt: null, reward: { coins: 100 }, xpReward: 100, unlockLevel: 8, restDurationSeconds: 15, restEndsAt: null },
-    { id: 'honey_bear', name: 'Honey Bear', emoji: '🍯', status: 'locked', durationSeconds: 120, startedAt: null, endsAt: null, reward: { food: 80, coins: 40 }, xpReward: 80, unlockLevel: 9, restDurationSeconds: 20, restEndsAt: null },
-  ],
-  badges: [
-    { id: 'fire', name: 'Fire Maker', progress: 0, type: 'in-progress', unlockLevel: 1 },
-    { id: 'wood', name: 'Wood Crafter', progress: 0, type: 'locked', unlockLevel: 2 },
-    { id: 'forage', name: 'Forager', progress: 0, type: 'locked', unlockLevel: 3 },
-    { id: 'trail', name: 'Trail Explorer', progress: 0, type: 'locked', unlockLevel: 4 },
-    { id: 'cook', name: 'Camp Cook', progress: 0, type: 'locked', unlockLevel: 5 },
-    { id: 'fish', name: 'Master Fisher', progress: 0, type: 'locked', unlockLevel: 6 },
-    { id: 'nature', name: 'Nature Guide', progress: 0, type: 'locked', unlockLevel: 7 },
-    { id: 'beast', name: 'Beast Tracker', progress: 0, type: 'locked', unlockLevel: 8 },
-    { id: 'night', name: 'Night Owl', progress: 0, type: 'locked', unlockLevel: 9 },
-  ],
-  missions: [
-    { id: 'm1', title: 'Gather Wood', icon: '🪵', reward: { coins: 100 }, current: 0, target: 50, status: 'go' },
-    { id: 'm2', title: 'Cook Meals', icon: '🥘', reward: { xp: 50 }, current: 0, target: 2, status: 'go' },
-    { id: 'm3', title: 'Find Rare Shroom', icon: '🍄', reward: { gems: 10 }, current: 0, target: 1, status: 'go' },
-    { id: 'm4', title: 'Pitch Tent', icon: '⛺', reward: { xp: 100 }, current: 0, target: 1, status: 'go' },
-    { id: 'm5', title: 'Unlock Fishing', icon: '🎣', reward: { xp: 200, coins: 500 }, current: 0, target: 1, status: 'go' },
-  ],
-  scouts: [
-    { id: 's1', name: 'Oliver', role: 'Camp Leader', level: 1, emoji: '🦊', assignedTo: null, ability: 'Speed (Time -20%)' },
-    { id: 's2', name: 'Mia', role: 'Forager', level: 1, emoji: '🦌', assignedTo: null, ability: 'Eagle Eye (+50% Food)' },
-    { id: 's3', name: 'Leo', role: 'Builder', level: 1, emoji: '🐻', assignedTo: null, ability: 'Strong (+50% Wood)' },
-    { id: 's4', name: 'Zoe', role: 'Cook', level: 1, emoji: '🐰', assignedTo: null, ability: 'Master Chef (Wait Time -30%)' },
-    { id: 's5', name: 'Sam', role: 'Fisher', level: 1, emoji: '🦦', assignedTo: null, ability: 'Patience (+50% Coins)' },
-  ],
-};
-
-function getScoutModifiers(scoutId?: string | null) {
-  let speedMulti = 1;
-  let foodMulti = 1;
-  let woodMulti = 1;
-  let coinsMulti = 1;
-  let restMulti = 1;
-  if (scoutId === 's1') speedMulti = 0.8;
-  if (scoutId === 's2') foodMulti = 1.5;
-  if (scoutId === 's3') woodMulti = 1.5;
-  if (scoutId === 's4') restMulti = 0.7;
-  if (scoutId === 's5') coinsMulti = 1.5;
-  return { speedMulti, foodMulti, woodMulti, coinsMulti, restMulti };
-}
-
-const SAVE_KEY = 'scouts_game_v2';
-
-function loadState(): GameState {
-  try {
-    const saved = localStorage.getItem(SAVE_KEY);
-    if (!saved) return INITIAL_STATE;
-    const parsed = JSON.parse(saved) as GameState;
-    // Overwrite with balanced config
-    const mergedActivities = parsed.activities.map(act => {
-      const initAct = INITIAL_STATE.activities.find(a => a.id === act.id);
-      return initAct ? { 
-        ...act, 
-        durationSeconds: initAct.durationSeconds, 
-        restDurationSeconds: initAct.restDurationSeconds 
-      } : act;
-    });
-    return applyOfflineProgress({ ...parsed, activities: mergedActivities });
-  } catch {
-    return INITIAL_STATE;
-  }
-}
-
-function saveState(state: GameState) {
-  localStorage.setItem(SAVE_KEY, JSON.stringify(state));
-}
-
-function applyOfflineProgress(state: GameState): GameState {
-  const now = Date.now();
-  const elapsed = now - state.lastTickAt;
-  if (elapsed < 2000) return state;
-
-  // const cappedElapsed = Math.min(elapsed, 8 * 60 * 60 * 1000);
-  
-  let updatedActivities = state.activities.map(act => {
-    if (act.status === 'active' && act.endsAt && now >= act.endsAt) {
-      return { ...act, status: 'ready' as ActivityStatus };
-    }
-    if (act.status === 'resting' && act.restEndsAt && now >= act.restEndsAt) {
-      return { ...act, status: 'idle' as ActivityStatus, restEndsAt: null };
-    }
-    return act;
-  });
-
-  return { ...state, activities: updatedActivities, lastTickAt: now };
-}
-
-function tick(state: GameState): GameState {
-  const now = Date.now();
-
-  const updatedActivities = state.activities.map(act => {
-    if (act.status === 'active' && act.endsAt && now >= act.endsAt) {
-      return { ...act, status: 'ready' as ActivityStatus };
-    }
-    if (act.status === 'resting' && act.restEndsAt && now >= act.restEndsAt) {
-      return { ...act, status: 'idle' as ActivityStatus, restEndsAt: null };
-    }
-    return act;
-  });
-
-  return { ...state, activities: updatedActivities, lastTickAt: now };
-}
-
-const BADGE_ACTIVITY_MAP: Record<string, { badgeId: string; increment: number }> = {
-  campfire:       { badgeId: 'fire',   increment: 5  },
-  cooking_pot:    { badgeId: 'cook',   increment: 8  },
-  wood_pile:      { badgeId: 'wood',   increment: 6  },
-  foraging_bush:  { badgeId: 'forage', increment: 7  },
-  mushroom_patch: { badgeId: 'forage', increment: 4  },
-  fishing_pond:   { badgeId: 'fish',   increment: 10 },
-  honey_bear:     { badgeId: 'nature', increment: 5  },
-  lookout_tower:  { badgeId: 'beast',  increment: 8  },
-  tent_area:      { badgeId: 'trail',  increment: 3  },
-};
-
-function updateBadgeProgress(badges: Badge[], activityId: string, campLvl: number): Badge[] {
-  const mapping = BADGE_ACTIVITY_MAP[activityId];
-  return badges.map(badge => {
-    if (badge.type === 'locked' && badge.unlockLevel <= campLvl) {
-      return { ...badge, type: 'in-progress' as const, progress: 0 };
-    }
-    if (!mapping || badge.id !== mapping.badgeId) return badge;
-    if (badge.type === 'locked' || badge.type === 'earned') return badge;
-
-    const newProgress = Math.min(100, badge.progress + mapping.increment);
-    return {
-      ...badge,
-      progress: newProgress,
-      type: newProgress >= 100 ? 'earned' : 'in-progress',
-    } as Badge;
-  });
-}
-
-const MISSION_ACTIVITY_MAP: Record<string, string> = {
-  wood_pile:      'm1',
-  cooking_pot:    'm2',
-  mushroom_patch: 'm3',
-  tent_area:      'm4',
-};
-
-function updateMissionProgress(missions: Mission[], activityId: string): Mission[] {
-  const missionId = MISSION_ACTIVITY_MAP[activityId];
-  return missions.map(m => {
-    if (m.id !== missionId || m.status === 'done') return m;
-    const newCurrent = Math.min(m.target, m.current + 1);
-    return {
-      ...m,
-      current: newCurrent,
-      status: newCurrent >= m.target ? 'claim' : 'go',
-    };
-  });
-}
+import { GameState, Activity, Badge, Mission, Scout, ShopItem, Resources, ActivityStatus } from './types/game';
+import { INITIAL_STATE, ACTIVITIES_ENERGY_COST, CAMP_UPGRADES, TENT_ENERGY_RESTORE, SHOP_ITEMS } from './data/gameConfig';
+import { getScoutModifiers, canUpgradeCamp, getCampUpgradeReqs, checkBadgeProgress, updateMissions, isBadgeEarned, applyRandomSurpriseReward } from './utils/gameLogic';
+import { loadState, saveState, tick } from './utils/saveSystem';
 
 function formatTimeLeft(endsAt: number | null): string {
   if (!endsAt) return '';
@@ -256,6 +24,7 @@ function formatTimeLeft(endsAt: number | null): string {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Camp');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const [game, setGame] = useState<GameState>(loadState);
 
@@ -272,55 +41,64 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  function resetGame() {
-    if (confirm('Are you sure you want to reset your camp? All progress will be lost!')) {
-      setGame(INITIAL_STATE);
-    }
+  function requestReset() {
+    setShowResetConfirm(true);
+  }
+
+  function confirmReset() {
+    localStorage.removeItem('scouts_game_v3');
+    localStorage.removeItem('scouts_game_v2');
+    localStorage.removeItem('scouts_game');
+    setGame({ ...INITIAL_STATE, currentDay: new Date().getDate() });
+    setShowResetConfirm(false);
+    setTimeout(() => {
+       window.location.reload();
+    }, 100);
   }
 
   function handleUpgradeCamp() {
-    const cost = getUpgradeCost(game.campLvl);
-    if (game.resources.coins >= cost.coins && game.resources.wood >= cost.wood) {
-      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-        navigator.vibrate([40, 60, 40, 60, 100]);
-      }
-      confetti({
-        particleCount: 100,
-        spread: 80,
-        origin: { y: 0.3 },
-        colors: ['#78A944', '#D58C28'],
-        disableForReducedMotion: true,
-      });
-      
-      setGame(prev => {
-        const currentCost = getUpgradeCost(prev.campLvl);
-        if (prev.resources.coins >= currentCost.coins && prev.resources.wood >= currentCost.wood) {
-          const newLvl = prev.campLvl + 1;
-          
-          const updatedActivities = prev.activities.map(a => {
-            if (a.status === 'locked' && a.unlockLevel <= newLvl) {
-              return { ...a, status: 'idle' as ActivityStatus };
-            }
-            return a;
-          });
-
-          const updatedBadges = updateBadgeProgress(prev.badges, 'upgrade', newLvl);
-          
-          return {
-            ...prev,
-            campLvl: newLvl,
-            resources: {
-              ...prev.resources,
-              coins: prev.resources.coins - currentCost.coins,
-              wood: prev.resources.wood - currentCost.wood,
-            },
-            activities: updatedActivities,
-            badges: updatedBadges
-          };
-        }
-        return prev;
-      });
+    if (!canUpgradeCamp(game)) return;
+    
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate([40, 60, 40, 60, 100]);
     }
+    confetti({
+      particleCount: 100,
+      spread: 80,
+      origin: { y: 0.3 },
+      colors: ['#78A944', '#D58C28'],
+      disableForReducedMotion: true,
+    });
+    
+    setGame(prev => {
+      const reqs = getCampUpgradeReqs(prev.campLvl);
+      if (!reqs) return prev;
+      
+      const newLvl = prev.campLvl + 1;
+      
+      const updatedActivities = prev.activities.map(a => {
+        if (a.status === 'locked' && a.unlockLevel <= newLvl) {
+          return { ...a, status: 'idle' as ActivityStatus };
+        }
+        return a;
+      });
+
+      const updatedMissions = updateMissions(prev.missions, 'upgrade', 'camp', newLvl);
+      
+      return {
+        ...prev,
+        campLvl: newLvl,
+        resources: {
+          ...prev.resources,
+          coins: prev.resources.coins - (reqs.coins || 0),
+          wood: prev.resources.wood - (reqs.wood || 0),
+          food: prev.resources.food - (reqs.food || 0),
+        },
+        campXP: prev.resources.wood || prev.campXP, // campXP doesn't decrease on use, it's cumulative? Wait, usually checklist requirements don't consume XP, they just require you have reached it. Wait, the reqs say `cost`. Actually, the checklist usually consumes coins/wood/food, but XP and badges are just thresholds. Let's keep XP. But wait, if it's a cost, it should consume? No, let's make it not consume XP or badges. So don't subtract XP.
+        activities: updatedActivities,
+        missions: updatedMissions
+      };
+    });
   }
 
   function handleAssignScout(activityId: string, event?: React.MouseEvent) {
@@ -335,8 +113,11 @@ export default function App() {
       const idx = options.indexOf(currentScout ? currentScout.id : null);
       const nextId = options[(idx + 1) % options.length];
 
+      const updatedMissions = nextId ? updateMissions(prev.missions, 'assign', activityId, 1) : prev.missions;
+
       return {
         ...prev,
+        missions: updatedMissions,
         scouts: prev.scouts.map(s => {
           if (currentScout && s.id === currentScout.id && s.id !== nextId) {
             return { ...s, assignedTo: null };
@@ -352,19 +133,44 @@ export default function App() {
 
   function handleStartActivity(activityId: string) {
     setGame(prev => {
-      const now = Date.now();
+      const act = prev.activities.find(a => a.id === activityId);
+      if (!act || act.status !== 'idle') return prev;
+
+      const actCost = ACTIVITIES_ENERGY_COST[activityId] || 10;
       const assignedScout = prev.scouts.find(s => s.assignedTo === activityId);
-      const mods = getScoutModifiers(assignedScout?.id);
-      const updatedActivities = prev.activities.map(act => {
-        if (act.id !== activityId || act.status !== 'idle') return act;
+      
+      let outOfEnergy = false;
+      let updatedScouts = prev.scouts;
+      
+      if (assignedScout) {
+         if (assignedScout.energy < actCost) {
+            outOfEnergy = true;
+         } else {
+            updatedScouts = prev.scouts.map(s => {
+               if (s.id === assignedScout.id) {
+                  return { ...s, energy: Math.max(0, s.energy - actCost) };
+               }
+               return s;
+            });
+         }
+      }
+
+      const mods = getScoutModifiers(outOfEnergy ? null : assignedScout?.id, prev);
+      const now = Date.now();
+      
+      const updatedActivities = prev.activities.map(a => {
+        if (a.id !== activityId) return a;
         return {
-          ...act,
+          ...a,
           status: 'active' as ActivityStatus,
           startedAt: now,
-          endsAt: now + (act.durationSeconds * mods.speedMulti) * 1000,
+          endsAt: now + (a.durationSeconds * mods.speedMulti) * 1000,
         };
       });
-      return { ...prev, activities: updatedActivities };
+
+      const updatedMissions = updateMissions(prev.missions, 'collect', activityId, 1);
+
+      return { ...prev, activities: updatedActivities, scouts: updatedScouts, missions: updatedMissions };
     });
   }
 
@@ -372,7 +178,7 @@ export default function App() {
     setGame(prev => {
       const updatedActivities = prev.activities.map(act => {
         if (act.id !== activityId || act.status !== 'active' || !act.endsAt) return act;
-        const newEndsAt = act.endsAt - 1000; // Speed up by 1 second per tap! Addictive!
+        const newEndsAt = act.endsAt - 1000;
         return {
           ...act,
           endsAt: Math.max(Date.now(), newEndsAt)
@@ -396,7 +202,6 @@ export default function App() {
         ticks: 80,
       });
       
-      // Satisfying haptic pop-pop for collecting resources
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         navigator.vibrate([30, 50, 30]);
       }
@@ -406,44 +211,137 @@ export default function App() {
       const act = prev.activities.find(a => a.id === activityId);
       if (!act || act.status !== 'ready') return prev;
 
+      const actCost = ACTIVITIES_ENERGY_COST[activityId] || 10;
       const assignedScout = prev.scouts.find(s => s.assignedTo === activityId);
-      const mods = getScoutModifiers(assignedScout?.id);
+      let outOfEnergy = assignedScout ? (assignedScout.energy + actCost < actCost) : false; // already paid
 
+      const mods = getScoutModifiers(outOfEnergy ? null : assignedScout?.id, prev);
       const now = Date.now();
 
+      // Calc rewards
+      let earnedCoins = Math.floor((act.reward.coins ?? 0) * mods.coinsMulti);
+      let earnedWood = Math.floor((act.reward.wood ?? 0) * mods.woodMulti);
+      let earnedFood = Math.floor((act.reward.food ?? 0) * mods.foodMulti);
+      let earnedGems = act.reward.gems ?? 0;
+      
+      const surprise = applyRandomSurpriseReward(act.reward);
+      if (surprise) {
+         earnedCoins += surprise.bonus.coins || 0;
+         earnedWood += surprise.bonus.wood || 0;
+         earnedFood += surprise.bonus.food || 0;
+         earnedGems += surprise.bonus.gems || 0;
+      }
+
       const newResources: Resources = {
-        coins: prev.resources.coins + Math.floor((act.reward.coins ?? 0) * mods.coinsMulti),
-        wood:  prev.resources.wood  + Math.floor((act.reward.wood  ?? 0) * mods.woodMulti),
-        food:  prev.resources.food  + Math.floor((act.reward.food  ?? 0) * mods.foodMulti),
+        coins: prev.resources.coins + earnedCoins,
+        wood:  prev.resources.wood  + earnedWood,
+        food:  prev.resources.food  + earnedFood,
+        gems:  (prev.resources.gems || 0) + earnedGems,
       };
 
-      let newLvl = prev.campLvl;
+      const newCampXP = prev.campXP + (act.xpReward || 0);
+      let scoutXPBonus = 10;
+      if (assignedScout && assignedScout.preferredActivities.includes(act.type)) {
+         scoutXPBonus = 20; // preferred match bonus
+      }
+
+      const updatedScouts = prev.scouts.map(s => {
+         if (s.id === assignedScout?.id) {
+            let sXP = s.xp + scoutXPBonus;
+            let sLvl = s.level;
+            let sxpToNext = s.xpToNext;
+            let maxEnergy = s.maxEnergy;
+            let ability = s.ability;
+            if (sXP >= sxpToNext) {
+               sLvl++;
+               sXP -= sxpToNext;
+               sxpToNext = Math.floor(sxpToNext * 1.5);
+               maxEnergy += 10;
+               // Enhance ability text could be complex, we'll just bump level visually for now
+            }
+            return { ...s, level: sLvl, xp: sXP, xpToNext: sxpToNext, maxEnergy };
+         }
+         // Tent restores energy globally to all? No, it could just be global or specific.
+         // Wait, the prompt says: "Tent Area: restores scout energy". If tent is collected:
+         if (act.id === 'tent_area') {
+            const restored = TENT_ENERGY_RESTORE * mods.energyRestoreMulti;
+            return { ...s, energy: Math.min(s.maxEnergy, s.energy + restored) };
+         }
+         return s;
+      });
 
       const updatedActivities = prev.activities.map(a => {
         if (a.id === activityId) {
           return {
             ...a,
+            collectionCount: a.collectionCount + 1,
             status: 'resting' as ActivityStatus,
             startedAt: null,
             endsAt: null,
             restEndsAt: now + (a.restDurationSeconds * mods.restMulti) * 1000,
           };
         }
-        if (a.status === 'locked' && a.unlockLevel <= newLvl) {
-          return { ...a, status: 'idle' as ActivityStatus };
-        }
         return a;
       });
 
-      const updatedBadges = updateBadgeProgress(prev.badges, activityId, newLvl);
-      const updatedMissions = updateMissionProgress(prev.missions, activityId);
+      const updatedBadges = checkBadgeProgress(prev.badges, activityId, act.collectionCount + 1);
+      
+      let badgeEarned = false;
+      updatedBadges.forEach((b, i) => { if (b.type === 'earned' && prev.badges[i].type !== 'earned') badgeEarned = true; });
+      let updatedMissions = updateMissions(prev.missions, 'collect', activityId, 1);
+      if (badgeEarned) updatedMissions = updateMissions(updatedMissions, 'badge', '', 1);
+
+      // check if a badge is fully earned, and update those!
+
+      const notifications = [...prev.notifications];
+      if (surprise) {
+         notifications.push({ id: Math.random().toString(), message: surprise.msg, timestamp: now });
+      }
 
       return {
         ...prev,
         resources: newResources,
+        campXP: newCampXP,
+        totalCollections: prev.totalCollections + 1,
         activities: updatedActivities,
+        scouts: updatedScouts,
         badges: updatedBadges,
         missions: updatedMissions,
+        notifications: notifications.slice(-5) // keep last 5
+      };
+    });
+  }
+
+  function handlePurchaseShopItem(item: ShopItem) {
+    if (game.resources.coins < item.price) return;
+
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate([20, 40]);
+    }
+
+    setGame(prev => {
+      const newResources = { ...prev.resources, coins: prev.resources.coins - item.price };
+      const newOwned = [...prev.ownedUpgrades];
+      let newScouts = prev.scouts;
+
+      if (item.type === 'permanent' && !newOwned.includes(item.id)) {
+        newOwned.push(item.id);
+        
+        // Apply instant effects of permanent upgrades if any
+        if (item.id === 'canvas_tent') {
+           newScouts = newScouts.map(s => ({ ...s, maxEnergy: s.maxEnergy + 20 }));
+        }
+      } else if (item.type === 'consumable') {
+        if (item.id === 'ration_pack') {
+           newScouts = newScouts.map(s => ({ ...s, energy: Math.min(s.maxEnergy, s.energy + 50) }));
+        }
+      }
+
+      return {
+        ...prev,
+        resources: newResources,
+        ownedUpgrades: newOwned,
+        scouts: newScouts
       };
     });
   }
@@ -465,9 +363,11 @@ export default function App() {
       if (!mission || mission.status !== 'claim') return prev;
 
       const newResources: Resources = {
+        ...prev.resources,
         coins: prev.resources.coins + (mission.reward?.coins || 0),
         wood:  prev.resources.wood + (mission.reward?.wood || 0),
         food:  prev.resources.food + (mission.reward?.food || 0),
+        gems:  (prev.resources.gems || 0) + (mission.reward?.gems || 0),
       };
 
       const updatedMissions = prev.missions.map(m =>
@@ -476,10 +376,37 @@ export default function App() {
 
       return {
         ...prev,
+        campXP: prev.campXP + (mission.reward?.campXP || 0),
         resources: newResources,
         missions: updatedMissions,
       };
     });
+  }
+
+  function handleClaimDailyChest() {
+    if (game.dailyChestClaimed) return;
+    
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate([50, 100, 150]);
+    }
+    confetti({
+      particleCount: 150,
+      spread: 100,
+      origin: { y: 0.5 },
+      colors: ['#E4A034', '#D58C28', '#A48F70', '#5687C2'],
+      disableForReducedMotion: true,
+    });
+
+    setGame(prev => ({
+      ...prev,
+      dailyChestClaimed: true,
+      resources: {
+        ...prev.resources,
+        coins: prev.resources.coins + 500,
+        gems: (prev.resources.gems || 0) + 5
+      },
+      campXP: prev.campXP + 500
+    }));
   }
 
   return (
@@ -528,15 +455,16 @@ export default function App() {
         {/* Main Content */}
         <div className="flex-1 flex flex-col min-h-0 relative z-10 w-full">
           <div className="flex-shrink-0">
-            <Header coins={game.resources.coins} wood={game.resources.wood} food={game.resources.food} campLvl={game.campLvl} onReset={resetGame} />
+            <Header coins={game.resources.coins} wood={game.resources.wood} food={game.resources.food} gems={game.resources.gems} campLvl={game.campLvl} onReset={requestReset} />
             <ResourceBar resources={game.resources} />
           </div>
           
           {activeTab === 'Camp' && (
             <>
               <div className="flex-shrink-0">
-                <CampLevel campLvl={game.campLvl} resources={game.resources} onUpgrade={handleUpgradeCamp} />
+                <CampLevel game={game} onUpgrade={handleUpgradeCamp} />
               </div>
+              <ActionGuidance game={game} />
               <div className="px-4 mb-2 flex-1 min-h-0 relative z-10 flex flex-col">
                 <ActivitiesMap activities={game.activities} scouts={game.scouts} onStart={handleStartActivity} onCollect={handleCollectActivity} onSpeedUp={handleSpeedUpActivity} onAssign={handleAssignScout} />
               </div>
@@ -544,7 +472,7 @@ export default function App() {
           )}
 
           {activeTab === 'Missions' && (
-            <MissionsTab missions={game.missions} onClaim={handleClaimMission} />
+            <MissionsTab game={game} onClaim={handleClaimMission} onClaimChest={handleClaimDailyChest} />
           )}
 
           {activeTab === 'Badges' && (
@@ -556,7 +484,7 @@ export default function App() {
           )}
 
           {activeTab === 'Shop' && (
-            <ShopTab />
+            <ShopTab items={SHOP_ITEMS} game={game} onPurchase={handlePurchaseShopItem} />
           )}
 
           <div className="flex-shrink-0">
@@ -564,6 +492,133 @@ export default function App() {
           </div>
         </div>
       </div>
+      
+      {/* Reset Confirmation Dialog */}
+      {showResetConfirm && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={() => setShowResetConfirm(false)}></div>
+          <div className="bg-[#FEFCF3] relative z-10 w-full max-w-[320px] rounded-[24px] p-5 shadow-2xl border-2 border-[#DBC19C]">
+            <div className="text-center mb-4">
+              <div className="w-[50px] h-[50px] bg-[#F2D7D7] rounded-full flex items-center justify-center text-[24px] mx-auto mb-3 border-[1.5px] border-[#E2B6B6]">
+                ⚠️
+              </div>
+              <h3 className="font-extrabold text-[18px] text-[#2A4418] mb-1.5">Reset Camp?</h3>
+              <p className="text-[#7A6C56] font-bold text-[13px] leading-snug">
+                Are you absolutely sure you want to reset your camp? All scouts, upgrades, and resources will be lost permanently!
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowResetConfirm(false)}
+                className="flex-1 bg-[#EAE0CB] hover:bg-[#DBC19C] text-[#7A6C56] font-extrabold text-[14px] py-2.5 rounded-[12px] transition-all">
+                Cancel
+              </button>
+              <button 
+                onClick={confirmReset}
+                className="flex-1 bg-[#D46C6C] hover:bg-[#C25858] active:scale-95 text-white font-extrabold text-[14px] py-2.5 rounded-[12px] border-[1.5px] border-[#B84E4E] transition-all shadow-sm">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Offline Progress Modal */}
+      <AnimatePresence>
+        {game.offlineReport && (
+          <motion.div
+             initial={{ opacity: 0 }}
+             animate={{ opacity: 1 }}
+             exit={{ opacity: 0 }}
+             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-blackish/60 backdrop-blur-[2px]"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-[#FEFCF3] w-full max-w-sm rounded-[24px] p-6 shadow-2xl border-2 border-[#E2D2B6] relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#F4E8D1] to-transparent opacity-50 rounded-full blur-2xl -translate-y-1/2 translate-x-1/4"></div>
+              
+              <div className="relative z-10 flex flex-col items-center text-center">
+                <div className="w-[80px] h-[80px] bg-[#EFE9DA] rounded-full flex items-center justify-center text-[40px] drop-shadow-sm border border-[#DCCCAD] mb-4">
+                  💤
+                </div>
+                <h2 className="text-[#304811] font-black text-[24px] tracking-tight leading-tight mb-2">
+                  While you were resting...
+                </h2>
+                <p className="text-[#8C7A5E] font-medium text-[14px] leading-snug mb-6">
+                  Your scouts continued to tend the camp for {Math.floor(game.offlineReport.timeOfflineMs / 60000)} minutes and gathered the following:
+                </p>
+                
+                <div className="grid grid-cols-2 gap-3 w-full mb-6">
+                  {game.offlineReport.coins > 0 && <OfflineItem emoji="🪙" val={game.offlineReport.coins} color="text-[#D58C28]" />}
+                  {game.offlineReport.wood > 0 && <OfflineItem emoji="🪵" val={game.offlineReport.wood} color="text-[#8B5A2B]" />}
+                  {game.offlineReport.food > 0 && <OfflineItem emoji="🍞" val={game.offlineReport.food} color="text-[#BA4A4A]" />}
+                  {game.offlineReport.xp > 0 && <OfflineItem emoji="✨" val={game.offlineReport.xp} color="text-[#78A944]" />}
+                </div>
+
+                <button 
+                  onClick={() => setGame(prev => ({ ...prev, offlineReport: null }))}
+                  className="w-full py-3 bg-[#78A944] hover:bg-[#689439] active:scale-95 transition-all rounded-[16px] border-b-[4px] border-[#557F26] text-white font-black text-[16px] shadow-sm"
+                >
+                  Awesome!
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function OfflineItem({ emoji, val, color }: any) {
+  return (
+    <div className="flex items-center justify-center gap-2 bg-[#F5EAD4] p-2 rounded-[12px] border border-[#E8D9BB] shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)]">
+      <span className="text-[18px]">{emoji}</span>
+      <span className={`text-[16px] font-black ${color}`}>+{val}</span>
+    </div>
+  );
+}
+
+function ActionGuidance({ game }: any) {
+  let suggestion = "";
+  let icon = "💡";
+
+  // Check 1: Unclaimed Missions or Chest
+  if (game.missions.some((m: any) => m.status === 'claim')) {
+    suggestion = "You have completed missions waiting to be claimed!";
+    icon = "🎯";
+  } else if (!game.dailyChestClaimed && game.missions.filter((m: any) => m.type === 'daily' && m.status === 'done').length >= game.missions.filter((m: any) => m.type === 'daily').length) {
+    suggestion = "Your Daily Chest is ready to open!";
+    icon = "🧰";
+  } 
+  // Check 2: Ready activities
+  else if (game.activities.some((a: any) => a.status === 'done')) {
+    suggestion = "Resources are ready to collect at camp!";
+    icon = "✋";
+  }
+  // Check 3: Idle activities that CAN be started (ignoring energy strictly for simplified hint)
+  else if (game.activities.some((a: any) => a.status === 'idle')) {
+    suggestion = "Start your idle activities to keep camp busy!";
+    icon = "🏕️";
+  }
+  // Check 4: Unassigned scouts
+  else if (game.scouts.some((s: any) => !s.locked && s.assignedTo === null)) {
+    suggestion = "You have unassigned scouts resting.";
+    icon = "⛺";
+  }
+  // Fallback
+  else {
+    suggestion = "Keep progressing! Upgrade activities to boost rewards.";
+    icon = "✨";
+  }
+
+  return (
+    <div className="mx-4 mb-2 lg:mb-3 shrink-0 rounded-xl bg-gradient-to-r from-[#FEFCF3] to-[#F1F6EC] p-2.5 px-3 border border-[#E2D2B6] shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex items-center gap-3">
+      <span className="text-[18px] bg-[#F2F7E6] p-1.5 rounded-lg border border-[#DCD1AD] shadow-sm leading-none shrink-0">{icon}</span>
+      <p className="text-[#304811] text-[12px] font-bold leading-tight flex-1">{suggestion}</p>
     </div>
   );
 }
@@ -614,49 +669,65 @@ function ResourceBar({ resources }: any) {
   );
 }
 
-function CampLevel({ campLvl, resources, onUpgrade }: any) {
-  const cost = getUpgradeCost(campLvl);
-  const canUpgrade = resources.coins >= cost.coins && resources.wood >= cost.wood;
-  const nextUnlock = INITIAL_STATE.activities.find(a => a.unlockLevel === campLvl + 1);
+function CampLevel({ game, onUpgrade }: any) {
+  const reqs = getCampUpgradeReqs(game.campLvl);
+  const canUpgrade = canUpgradeCamp(game);
+  const nextUnlock = INITIAL_STATE.activities.find(a => a.unlockLevel === game.campLvl + 1);
 
   return (
     <div className="px-4 mb-4 shrink-0">
       <div className="bg-[#FEFCF3] rounded-[24px] p-4 shadow-sm border-[2px] border-[#E2D2B6] flex items-center justify-between transition-all hover:shadow-md hover:bg-white cursor-default relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#F4E8D1] to-transparent opacity-50 rounded-full blur-2xl -translate-y-1/2 translate-x-1/4 pointer-events-none"></div>
-        <div className="flex items-center gap-4 relative z-10 w-full">
-          <div className="relative w-[64px] h-[64px] bg-[#EFE9DA] rounded-[18px] flex items-center justify-center text-[42px] drop-shadow-sm shrink-0 border border-[#DCCCAD] shadow-inner">
-             🏕️
+        <div className="flex items-center gap-3 relative z-10 w-full">
+          <div className="relative w-[60px] h-[60px] bg-[#EFE9DA] rounded-[18px] flex flex-col items-center justify-center drop-shadow-sm shrink-0 border border-[#DCCCAD] shadow-inner">
+             <span className="text-[32px] leading-none mb-0.5">🏕️</span>
+             <span className="text-[#A49C8B] font-black text-[10px] leading-none drop-shadow-sm absolute -bottom-2 bg-white px-2 py-0.5 rounded-md border border-[#E2D2B6]">Lvl {game.campLvl}</span>
           </div>
-          <div className="flex flex-col justify-center flex-1">
-            <h2 className="text-[#304811] font-black text-[22px] tracking-tight leading-none mb-1.5 flex items-center gap-2">
-              Camp Level {campLvl}
+          <div className="flex flex-col justify-center flex-1 ml-1">
+            <h2 className="text-[#304811] font-black text-[16px] tracking-tight leading-none mb-1.5 flex items-center gap-2">
+              Upgrade Camp
             </h2>
-            <div className="flex flex-col gap-1">
-              <span className="text-[#8C7A5E] text-[11.5px] font-extrabold tracking-wide uppercase leading-none">Upgrade Cost:</span>
-              <div className="flex items-center gap-2.5">
-                 <div className={`flex items-center gap-1 bg-[#F5EAD4] px-2 py-1 rounded-md border border-[#E8D9BB] shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)] ${resources.coins >= cost.coins ? '' : 'opacity-60'}`}>
-                   <span className="text-[12px]">🪙</span>
-                   <span className={`text-[13px] font-black ${resources.coins >= cost.coins ? 'text-[#D58C28]' : 'text-[#A49C8B]'}`}>{cost.coins}</span>
-                 </div>
-                 <div className={`flex items-center gap-1 bg-[#F5EAD4] px-2 py-1 rounded-md border border-[#E8D9BB] shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)] ${resources.wood >= cost.wood ? '' : 'opacity-60'}`}>
-                   <span className="text-[12px]">🪵</span>
-                   <span className={`text-[13px] font-black ${resources.wood >= cost.wood ? 'text-[#8B5A2B]' : 'text-[#A49C8B]'}`}>{cost.wood}</span>
-                 </div>
-              </div>
+            <div className="flex flex-wrap gap-1">
+              {!reqs ? (
+                <span className="text-[#78A944] text-[11px] font-bold">Max Level Reached!</span>
+              ) : (
+                <>
+                  {reqs.coins && <ReqBadge emoji="🪙" val={reqs.coins} has={game.resources.coins} />}
+                  {reqs.wood && <ReqBadge emoji="🪵" val={reqs.wood} has={game.resources.wood} />}
+                  {reqs.food && <ReqBadge emoji="🍞" val={reqs.food} has={game.resources.food} />}
+                  {reqs.campXP && <ReqBadge emoji="✨" val={reqs.campXP} has={game.campXP} />}
+                  {reqs.badges && reqs.badges.map((bId: string) => {
+                     const b = game.badges.find((bx: Badge) => bx.id === bId);
+                     return <ReqBadge key={bId} text={b?.name} has={isBadgeEarned(game.badges, bId) as any} isBool />;
+                  })}
+                </>
+              )}
             </div>
           </div>
-          <div className="flex flex-col items-center justify-center relative z-10 ml-2">
+          <div className="flex flex-col items-center justify-center relative z-10 ml-1">
              <button 
                onClick={onUpgrade}
-               disabled={!canUpgrade}
-               className={`relative shrink-0 flex items-center justify-center w-[52px] h-[52px] rounded-[16px] text-white transition-all ${canUpgrade ? 'bg-[#78A944] hover:bg-[#689439] active:scale-95 shadow-[0_4px_0_#557F26] hover:translate-y-[1px] hover:shadow-[0_3px_0_#557F26] active:translate-y-[4px] active:shadow-[0_0px_0_#557F26]' : 'bg-[#EAE0CB] cursor-not-allowed opacity-80 border-2 border-[#DCCCAD]'}`}
+               disabled={!canUpgrade || !reqs}
+               className={`relative shrink-0 flex items-center justify-center w-[48px] h-[48px] rounded-[16px] text-white transition-all ${canUpgrade && reqs ? 'bg-[#78A944] hover:bg-[#689439] active:scale-95 shadow-[0_4px_0_#557F26] hover:translate-y-[1px] hover:shadow-[0_3px_0_#557F26] active:translate-y-[4px] active:shadow-[0_0px_0_#557F26]' : 'bg-[#EAE0CB] cursor-not-allowed opacity-80 border-2 border-[#DCCCAD]'}`}
              >
-               <ArrowUp className={`w-[26px] h-[26px] ${canUpgrade ? 'animate-bounce' : ''}`} strokeWidth={3.5} />
+               <ArrowUp className={`w-[24px] h-[24px] ${canUpgrade && reqs ? 'animate-bounce' : ''}`} strokeWidth={3.5} />
              </button>
-             {nextUnlock && canUpgrade && <span className="absolute -bottom-2 -right-2 text-[20px] drop-shadow-lg pointer-events-none">{nextUnlock.emoji}</span>}
+             {nextUnlock && canUpgrade && reqs && <span className="absolute -bottom-2 -left-2 text-[18px] drop-shadow-lg pointer-events-none">{nextUnlock.emoji}</span>}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ReqBadge({ emoji, text, val, has, isBool = false }: any) {
+  const met = isBool ? has : (has >= val);
+  return (
+    <div className={`flex items-center gap-1 bg-[#F5EAD4] px-1.5 py-0.5 rounded border shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)] ${met ? 'border-[#78A944] opacity-100' : 'border-[#E8D9BB] opacity-60'}`}>
+      {emoji && <span className="text-[10px]">{emoji}</span>}
+      {text && <span className="text-[9px] font-bold text-[#8C7A5E] uppercase truncate max-w-[60px]">{text}</span>}
+      {!isBool && <span className={`text-[10px] font-black ${met ? 'text-[#78A944]' : 'text-[#A49C8B]'}`}>{val}</span>}
+      {met && <CheckCircle2 className="w-2.5 h-2.5 text-[#78A944]" strokeWidth={4} />}
     </div>
   );
 }
@@ -850,8 +921,10 @@ function ActivityCard({ act, scouts, onStart, onCollect, onSpeedUp, onAssign }: 
   );
 }
 
-function MissionsTab({ missions, onClaim }: any) {
-  const completedCount = missions.filter((m: any) => m.status === 'done').length;
+function MissionsTab({ game, onClaim, onClaimChest }: any) {
+  const dailyMissions = game.missions.filter((m: any) => m.type === 'daily');
+  const trailMissions = game.missions.filter((m: any) => m.type === 'trail');
+  const completedDailyCount = dailyMissions.filter((m: any) => m.status === 'done').length;
 
   return (
     <div className="flex-1 min-h-0 relative flex flex-col w-full px-1 pt-1 mb-2">
@@ -864,50 +937,62 @@ function MissionsTab({ missions, onClaim }: any) {
         </div>
         <div className="bg-[#FEFCF3] rounded-[16px] p-3 shadow-sm border border-[#DBC19C] relative">
           <div className="flex justify-between items-center mb-2 px-1">
-             <h2 className="text-[#304811] font-extrabold text-[15px] tracking-tight">Today's Trail</h2>
-             <span className="text-[#78A944] font-extrabold text-[12px]">{completedCount} / {missions.length}</span>
+             <h2 className="text-[#304811] font-extrabold text-[15px] tracking-tight">Daily Progress</h2>
+             <span className="text-[#78A944] font-extrabold text-[12px]">{completedDailyCount} / {dailyMissions.length}</span>
           </div>
           <div className="w-full h-[6px] bg-[#EBE6CD] rounded-full overflow-hidden">
-            <div className="bg-[#78A944] h-full rounded-full transition-all duration-300" style={{ width: `${(completedCount / missions.length) * 100}%` }}></div>
+            <div className="bg-[#78A944] h-full rounded-full transition-all duration-300" style={{ width: `${(completedDailyCount / dailyMissions.length) * 100}%` }}></div>
           </div>
         </div>
       </div>
 
       <div className="px-3">
-         {/* Featured Mission */}
-         <div className="bg-[#FEFCF3] rounded-2xl p-3 shadow-sm border border-[#DBC19C] relative flex items-center gap-3">
-           <div className="w-[60px] h-[60px] bg-[#F1E4C3] rounded-xl flex items-center justify-center text-[32px] border border-[#DBC19C] shrink-0">
-             🎣
-           </div>
-           
-           <div className="flex-1 min-w-0">
-             <span className="text-[#E4A034] text-[9px] font-extrabold uppercase tracking-wide mb-0.5 block">Featured Task</span>
-             <h3 className="font-extrabold text-[14px] text-[#2A4418] leading-tight mb-1 truncate">Unlock Fishing Pond</h3>
-             <div className="flex items-center gap-1.5 mb-2">
-               <span className="bg-[#EAE0CB] text-[#7A6C56] font-extrabold text-[10px] px-2 py-0.5 rounded-full border border-[#DBC19C] flex items-center gap-1">
-                 <span className="text-[#E4A034] text-[10px]">⭐</span> 200 XP
-               </span>
-             </div>
-           </div>
-           
-           <div className="shrink-0 flex items-center justify-center">
-             <button className="bg-[#7CAE41] hover:bg-[#689439] text-white font-extrabold text-[12px] px-3 py-1.5 rounded-[10px] transition-all outline-none">
-               GO
-             </button>
-           </div>
+         {/* Trail Missions (Featured) */}
+         <h3 className="text-[#A48F70] text-[11px] font-extrabold uppercase tracking-wide mb-2 ml-1">Trail Missions</h3>
+         <div className="flex flex-col gap-2.5">
+           {trailMissions.map((m: any) => (
+              <div key={m.id} className={`bg-[#FEFCF3] rounded-2xl p-3 shadow-sm border ${m.status === 'claim' ? 'border-[#78A944]' : 'border-[#DBC19C]'} relative flex items-center gap-3 ${m.status === 'locked' ? 'opacity-60' : ''}`}>
+                <div className={`w-[50px] h-[50px] rounded-xl flex items-center justify-center text-[28px] border shrink-0 ${m.status === 'claim' ? 'bg-[#F2F7E6] border-[#78A944]' : 'bg-[#F1E4C3] border-[#DBC19C]'}`}>
+                  {m.status === 'locked' ? '🔒' : m.icon}
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <h3 className={`font-extrabold text-[14px] leading-tight mb-1 truncate ${m.status === 'locked' ? 'text-[#8C7A5E]' : 'text-[#2A4418]'}`}>{m.title}</h3>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {m.reward.coins && <span className="text-[#D58C28] font-extrabold text-[10px]">{m.reward.coins} 🪙</span>}
+                    {m.reward.wood && <span className="text-[#8B5A2B] font-extrabold text-[10px]">{m.reward.wood} 🪵</span>}
+                    {m.reward.gems && <span className="text-[#5687C2] font-extrabold text-[10px]">{m.reward.gems} 💎</span>}
+                    {m.reward.campXP && <span className="text-[#78A944] font-extrabold text-[10px]">{m.reward.campXP} ✨</span>}
+                  </div>
+                  <div className="w-full h-[4px] bg-[#EBE6CD] rounded-full overflow-hidden mt-1.5 max-w-[120px]">
+                    <div className="bg-[#D3A95E] h-full rounded-full transition-all" style={{ width: `${(m.current / m.target) * 100}%` }}></div>
+                  </div>
+                </div>
+                
+                <div className="shrink-0 flex items-center justify-center">
+                  {m.status === 'done' ? (
+                     <button disabled className="bg-[#EAE0CB] text-[#8C7A5E] font-extrabold text-[12px] px-3 py-1.5 rounded-[10px] border border-[#CBB58B]">Done</button>
+                  ) : m.status === 'claim' ? (
+                     <button onClick={() => onClaim(m.id)} className="bg-[#7CAE41] hover:bg-[#689439] active:scale-95 text-white font-extrabold text-[12px] px-3 py-1.5 rounded-[10px] transition-all shadow-sm">Claim</button>
+                  ) : (
+                     <button disabled className="bg-white text-[#5C8925] font-extrabold text-[12px] px-3 py-1.5 rounded-[10px] border border-[#DCD1AD] opacity-50">{m.current}/{m.target}</button>
+                  )}
+                </div>
+              </div>
+           ))}
          </div>
       </div>
 
       <div className="px-3">
-        {/* Mission Grid */}
+        <h3 className="text-[#A48F70] text-[11px] font-extrabold uppercase tracking-wide mb-2 ml-1">Daily Tasks</h3>
         <div className="grid grid-cols-2 gap-2.5">
-           {missions.map((m: any) => (
+           {dailyMissions.map((m: any) => (
              <SmallMissionCard 
                key={m.id}
                icon={m.icon} 
                title={m.title} 
                progress={`${m.current}/${m.target}`} 
-               reward={m.reward.coins ? `${m.reward.coins} 🪙` : m.reward.xp ? `${m.reward.xp} ✨` : `${m.reward.gems} 💎`} 
+               reward={m.reward.coins ? `${m.reward.coins} 🪙` : m.reward.wood ? `${m.reward.wood} 🪵` : m.reward.campXP ? `${m.reward.campXP} ✨` : `${m.reward.gems} 💎`} 
                status={m.status} 
                onClick={() => onClaim(m.id)}
              />
@@ -917,27 +1002,38 @@ function MissionsTab({ missions, onClaim }: any) {
 
       <div className="px-3 mt-1 pb-4">
         {/* Daily Chest */}
-        <div className="bg-gradient-to-br from-[#FEFCF3] to-[#F1E4C3] rounded-[18px] p-3 shadow-[0_4px_10px_rgba(0,0,0,0.2)] border-[1.5px] border-[#DBC19C] relative flex items-center gap-3">
-          <div className="w-[50px] h-[50px] bg-[#EAE0CB] rounded-[12px] flex items-center justify-center text-[28px] border-[1.5px] border-[#DBC19C] shrink-0 shadow-inner">
-            🧰
+        <div className={`bg-gradient-to-br ${game.dailyChestClaimed ? 'from-[#EAE0CB] to-[#DBC19C]' : 'from-[#FEFCF3] to-[#F1E4C3]'} rounded-[18px] p-3 shadow-[0_4px_10px_rgba(0,0,0,0.2)] border-[1.5px] border-[#DBC19C] relative flex items-center gap-3`}>
+          <div className={`w-[50px] h-[50px] ${game.dailyChestClaimed ? 'bg-[#DBC19C]' : 'bg-[#EAE0CB]'} rounded-[12px] flex items-center justify-center text-[28px] border-[1.5px] border-[#DBC19C] shrink-0 shadow-inner`}>
+            {game.dailyChestClaimed ? '📦' : '🧰'}
           </div>
           
           <div className="flex-1 min-w-0">
-            <h3 className="font-extrabold text-[13px] text-[#2A4418] mb-0.5">Daily Chest</h3>
-            <p className="text-[#7A6C56] font-bold text-[10px] mb-1.5">Complete 5 missions</p>
-            <div className="w-full h-[5px] bg-[#DBC19C] rounded-full overflow-hidden shadow-inner">
-              <div className="bg-[#E4A034] h-full rounded-full w-[60%] shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)]"></div>
+            <h3 className={`font-extrabold text-[13px] ${game.dailyChestClaimed ? 'text-[#8C7A5E]' : 'text-[#2A4418]'} mb-0.5`}>Daily Chest</h3>
+            <p className="text-[#7A6C56] font-bold text-[10px] mb-1.5">{game.dailyChestClaimed ? 'Claimed!' : `Complete ${dailyMissions.length} daily missions`}</p>
+            <div className={`w-full h-[5px] ${game.dailyChestClaimed ? 'bg-[#CBB58B]' : 'bg-[#DBC19C]'} rounded-full overflow-hidden shadow-inner`}>
+              <div className={`${game.dailyChestClaimed ? 'bg-[#A49C8B]' : 'bg-[#E4A034]'} h-full rounded-full transition-all shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)]`} style={{ width: `${(completedDailyCount / dailyMissions.length) * 100}%` }}></div>
             </div>
           </div>
           
           <div className="shrink-0 flex flex-col items-center gap-1">
-             <div className="flex gap-1">
-               <span className="text-[10px]">🪙</span>
-               <span className="text-[10px]">💎</span>
+             <div className="flex gap-1 text-[10px] opacity-80">
+               <span>🪙</span>
+               <span>💎</span>
+               <span>✨</span>
              </div>
-             <button className="bg-gradient-to-b from-[#A49C8B] to-[#7A6C56] text-white opacity-70 font-extrabold text-[11px] px-3 py-1 rounded-[8px] border-[1.5px] border-[#564938] pointer-events-none">
-               Locked
-             </button>
+             {game.dailyChestClaimed ? (
+                <button disabled className="bg-transparent text-[#8C7A5E] font-extrabold text-[11px] px-3 py-1 rounded-[8px] pointer-events-none">
+                  Done
+                </button>
+             ) : completedDailyCount >= dailyMissions.length ? (
+                <button onClick={onClaimChest} className="bg-[#E4A034] hover:bg-[#D58C28] active:scale-95 text-white font-extrabold text-[11px] px-3 py-1 rounded-[8px] border-[1.5px] border-[#C96C11] shadow-sm transition-all">
+                  Open!
+                </button>
+             ) : (
+                <button disabled className="bg-gradient-to-b from-[#A49C8B] to-[#7A6C56] text-white opacity-70 font-extrabold text-[11px] px-3 py-1 rounded-[8px] border-[1.5px] border-[#564938] pointer-events-none">
+                  Locked
+                </button>
+             )}
           </div>
         </div>
       </div>
@@ -1188,17 +1284,9 @@ function ScoutsTab({ scouts }: any) {
   );
 }
 
-function ShopTab() {
-  const dailyDeals = [
-    { name: 'Sturdy Axe', type: 'Tool', price: 450, prevPrice: 600, emoji: '🪓', color: 'from-[#D46C6C] to-[#B84E4E]' },
-    { name: 'Ration Pack', type: 'Food', price: 120, prevPrice: 200, emoji: '🥫', color: 'from-[#77AB3F] to-[#43741B]' },
-  ];
-
-  const upgrades = [
-    { name: 'Canvas Tent', desc: '+2 Max Scouts', price: 1200, emoji: '⛺', locked: false },
-    { name: 'Steel Rod', desc: 'Better Fish', price: 850, emoji: '🎣', locked: false },
-    { name: 'Field Guide', desc: '+10% XP', price: 2000, emoji: '📖', locked: true },
-  ];
+function ShopTab({ items, game, onPurchase }: any) {
+  const dailyDeals = items.filter((i: ShopItem) => ['sturdy_axe', 'ration_pack'].includes(i.id));
+  const upgrades = items.filter((i: ShopItem) => !['sturdy_axe', 'ration_pack'].includes(i.id));
 
   return (
     <div className="flex-1 min-h-0 relative flex flex-col w-full px-2 pt-2 mb-2">
@@ -1238,9 +1326,18 @@ function ShopTab() {
                     <h4 className="font-extrabold text-[#3E2813] text-[14px] leading-tight text-center">{deal.name}</h4>
                     <span className="text-[#A48F70] text-[10px] font-bold mb-2 uppercase">{deal.type}</span>
                     
-                    <button className="w-full bg-[#F3D581] hover:bg-[#E4B14B] active:bg-[#C9912F] text-[#5E3F24] font-black text-[13px] py-1.5 rounded-[8px] border-[1.5px] border-[#D4A373] shadow-sm transform active:scale-95 transition-all flex items-center justify-center gap-1.5 mt-auto">
-                       <span className="line-through text-[#A48F70] text-[10px] opacity-70">{deal.prevPrice}</span>
-                       <span>{deal.price} <span className="text-[10px]">🪙</span></span>
+                    <button 
+                       onClick={() => onPurchase(deal)}
+                       disabled={deal.locked || game.resources.coins < deal.price || (deal.type === 'permanent' && game.ownedUpgrades.includes(deal.id))}
+                       className={`w-full font-black text-[13px] py-1.5 rounded-[8px] border-[1.5px] shadow-sm transform transition-all flex items-center justify-center gap-1.5 mt-auto ${deal.locked || game.resources.coins < deal.price || (deal.type === 'permanent' && game.ownedUpgrades.includes(deal.id)) ? 'bg-[#EAE0CB] border-[#DCCCAD] text-[#A49C8B] opacity-70 cursor-not-allowed' : 'bg-[#F3D581] hover:bg-[#E4B14B] active:bg-[#C9912F] text-[#5E3F24] border-[#D4A373] active:scale-95'}`}>
+                       {deal.type === 'permanent' && game.ownedUpgrades.includes(deal.id) ? (
+                         <span className="text-[#A48F70]">Owned</span>
+                       ) : (
+                         <>
+                           {deal.prevPrice && <span className="line-through text-[#A48F70] text-[10px] opacity-70">{deal.prevPrice}</span>}
+                           <span>{deal.price} <span className="text-[10px]">🪙</span></span>
+                         </>
+                       )}
                     </button>
                 </div>
              ))}
@@ -1265,8 +1362,15 @@ function ShopTab() {
                     <p className="text-[#8C7A5E] text-[12px] font-bold mb-1">{item.desc}</p>
                  </div>
 
-                 <button className={`shrink-0 flex items-center justify-center gap-1 px-3 py-1.5 rounded-[12px] font-extrabold text-[13px] border-[1.5px] shadow-sm transform active:scale-95 transition-all ${item.locked ? 'bg-[#F4E8D1] border-[#DECAAA] text-[#A49C8B]' : 'bg-[#FEFCF3] border-[#78A944] text-[#5C8925]'}`}>
-                    {item.price} <span className="text-[11px]">🪙</span>
+                 <button 
+                    onClick={() => onPurchase(item)}
+                    disabled={item.locked || game.resources.coins < item.price || (item.type === 'permanent' && game.ownedUpgrades.includes(item.id))}
+                    className={`shrink-0 flex items-center justify-center gap-1 px-3 py-1.5 rounded-[12px] font-extrabold text-[13px] border-[1.5px] shadow-sm transform transition-all ${item.locked || game.resources.coins < item.price || (item.type === 'permanent' && game.ownedUpgrades.includes(item.id)) ? 'bg-[#F4E8D1] border-[#DECAAA] text-[#A49C8B] cursor-not-allowed' : 'bg-[#FEFCF3] border-[#78A944] text-[#5C8925] active:scale-95'}`}>
+                    {item.type === 'permanent' && game.ownedUpgrades.includes(item.id) ? (
+                       <span className="text-[#A49C8B]">Owned</span>
+                    ) : (
+                       <>{item.price} <span className="text-[11px]">🪙</span></>
+                    )}
                  </button>
              </div>
          ))}
