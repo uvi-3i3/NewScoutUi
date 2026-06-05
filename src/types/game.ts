@@ -61,7 +61,7 @@ export interface Scout {
   energy: number;
   maxEnergy: number;
   emoji: string;
-  assignedTo: string | null;
+  assignedTo: string[];
   ability: string;
   preferredActivities: ActivityType[];
 }

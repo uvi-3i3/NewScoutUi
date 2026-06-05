@@ -33,11 +33,18 @@ export function loadState(): GameState {
 
     const mergedScouts = parsed.scouts.map(scout => {
        const initScout = INITIAL_STATE.scouts.find(s => s.id === scout.id);
+       let migratedAssignedTo: string[] = [];
+       if (Array.isArray(scout.assignedTo)) {
+           migratedAssignedTo = scout.assignedTo;
+       } else if (scout.assignedTo) {
+           migratedAssignedTo = [scout.assignedTo as unknown as string];
+       }
        return initScout ? {
            ...scout,
+           assignedTo: migratedAssignedTo,
            ability: initScout.ability,
            preferredActivities: initScout.preferredActivities
-       } : scout;
+       } : { ...scout, assignedTo: migratedAssignedTo };
     });
 
     let loadedCampLvl = parsed.campLvl || INITIAL_STATE.campLvl;

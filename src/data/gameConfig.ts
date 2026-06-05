@@ -23,11 +23,11 @@ export const INITIAL_BADGES: Badge[] = [
 ];
 
 export const INITIAL_SCOUTS: Scout[] = [
-  { id: 's1', name: 'Oliver', role: 'Camp Leader', level: 1, xp: 0, xpToNext: 100, energy: 100, maxEnergy: 100, emoji: '🦊', assignedTo: null, ability: 'Speed (Time -20%)', preferredActivities: ['coins', 'special'] },
-  { id: 's2', name: 'Mia', role: 'Forager', level: 1, xp: 0, xpToNext: 100, energy: 100, maxEnergy: 100, emoji: '🦌', assignedTo: null, ability: 'Eagle Eye (+50% Food)', preferredActivities: ['food'] },
-  { id: 's3', name: 'Leo', role: 'Builder', level: 1, xp: 0, xpToNext: 100, energy: 100, maxEnergy: 100, emoji: '🐻', assignedTo: null, ability: 'Strong (+50% Wood)', preferredActivities: ['wood'] },
-  { id: 's4', name: 'Zoe', role: 'Cook', level: 1, xp: 0, xpToNext: 100, energy: 100, maxEnergy: 100, emoji: '🐰', assignedTo: null, ability: 'Master Chef (Wait -30%)', preferredActivities: ['energy'] },
-  { id: 's5', name: 'Sam', role: 'Fisher', level: 1, xp: 0, xpToNext: 100, energy: 100, maxEnergy: 100, emoji: '🦦', assignedTo: null, ability: 'Patience (+50% Coins)', preferredActivities: ['special'] },
+  { id: 's1', name: 'Oliver', role: 'Camp Leader', level: 1, xp: 0, xpToNext: 100, energy: 100, maxEnergy: 100, emoji: '🦊', assignedTo: [], ability: 'Speed (Time -20%)', preferredActivities: ['coins', 'special'] },
+  { id: 's2', name: 'Mia', role: 'Forager', level: 1, xp: 0, xpToNext: 100, energy: 100, maxEnergy: 100, emoji: '🦌', assignedTo: [], ability: 'Eagle Eye (+50% Food)', preferredActivities: ['food'] },
+  { id: 's3', name: 'Leo', role: 'Builder', level: 1, xp: 0, xpToNext: 100, energy: 100, maxEnergy: 100, emoji: '🐻', assignedTo: [], ability: 'Strong (+50% Wood)', preferredActivities: ['wood'] },
+  { id: 's4', name: 'Zoe', role: 'Cook', level: 1, xp: 0, xpToNext: 100, energy: 100, maxEnergy: 100, emoji: '🐰', assignedTo: [], ability: 'Master Chef (Wait -30%)', preferredActivities: ['energy'] },
+  { id: 's5', name: 'Sam', role: 'Fisher', level: 1, xp: 0, xpToNext: 100, energy: 100, maxEnergy: 100, emoji: '🦦', assignedTo: [], ability: 'Patience (+50% Coins)', preferredActivities: ['special'] },
 ];
 
 export const DAILY_MISSIONS: Mission[] = [
@@ -58,7 +58,7 @@ export const ACTIVITIES_ENERGY_COST: Record<string, number> = {
 export const TENT_ENERGY_RESTORE = 40;
 
 export const CAMP_UPGRADES: CampUpgrade[] = [
-  { level: 2, requirements: { coins: 50, wood: 20, campXP: 50 } },
+  { level: 2, requirements: { coins: 50, campXP: 50 } },
   { level: 3, requirements: { coins: 150, wood: 80, campXP: 150, badges: ['fire'] } },
   { level: 4, requirements: { coins: 300, wood: 200, food: 100, campXP: 400, badges: ['wood'] } },
   { level: 5, requirements: { coins: 600, wood: 400, food: 250, campXP: 1000, scoutsLvl2: 2 } },

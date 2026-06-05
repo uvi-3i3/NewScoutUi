@@ -4,7 +4,7 @@ import confetti from 'canvas-confetti';
 import { 
   Bell, Plus, ArrowUp, CheckCircle2, Clock, 
   Lock, Tent, ClipboardList, Award, Store,
-  Flame, Leaf, ChevronRight, Minus, User, RotateCcw
+  Flame, Leaf, ChevronRight, Minus, User, RotateCcw, X
 } from 'lucide-react';
 
 import { GameState, Activity, Badge, Mission, Scout, ShopItem, Resources, ActivityStatus } from './types/game';
@@ -27,6 +27,8 @@ export default function App() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const [game, setGame] = useState<GameState>(loadState);
+
+  const [assigningActivityId, setAssigningActivityId] = useState<string | null>(null);
 
   // Save on every state change
   useEffect(() => {
@@ -103,32 +105,32 @@ export default function App() {
 
   function handleAssignScout(activityId: string, event?: React.MouseEvent) {
     if (event) event.stopPropagation();
-    setGame(prev => {
-      const currentScout = prev.scouts.find(s => s.assignedTo === activityId);
-      const availableScouts = prev.scouts.filter(s => !s.assignedTo);
-      
-      const options = [null, ...availableScouts.map(s => s.id)];
-      if (currentScout) options.splice(1, 0, currentScout.id);
-      
-      const idx = options.indexOf(currentScout ? currentScout.id : null);
-      const nextId = options[(idx + 1) % options.length];
+    setAssigningActivityId(activityId);
+  }
 
-      const updatedMissions = nextId ? updateMissions(prev.missions, 'assign', activityId, 1) : prev.missions;
+  function assignScoutToTask(activityId: string, scoutId: string | null) {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(20);
+    setGame(prev => {
+      const prevScout = prev.scouts.find(s => s.assignedTo.includes(activityId));
+      const updatedMissions = scoutId ? updateMissions(prev.missions, 'assign', activityId, 1) : prev.missions;
 
       return {
         ...prev,
         missions: updatedMissions,
         scouts: prev.scouts.map(s => {
-          if (currentScout && s.id === currentScout.id && s.id !== nextId) {
-            return { ...s, assignedTo: null };
+          if (prevScout && s.id === prevScout.id && s.id !== scoutId) {
+            return { ...s, assignedTo: s.assignedTo.filter(id => id !== activityId) };
           }
-          if (nextId && s.id === nextId) {
-            return { ...s, assignedTo: activityId };
+          if (scoutId && s.id === scoutId) {
+            if (!s.assignedTo.includes(activityId)) {
+               return { ...s, assignedTo: [...s.assignedTo, activityId] };
+            }
           }
           return s;
         })
       };
     });
+    setAssigningActivityId(null);
   }
 
   function handleStartActivity(activityId: string) {
@@ -137,7 +139,8 @@ export default function App() {
       if (!act || act.status !== 'idle') return prev;
 
       const actCost = ACTIVITIES_ENERGY_COST[activityId] || 10;
-      const assignedScout = prev.scouts.find(s => s.assignedTo === activityId);
+      const assignedScout = prev.scouts.find(s => s.assignedTo.includes(activityId));
+      if (!assignedScout) return prev;
       
       let outOfEnergy = false;
       let updatedScouts = prev.scouts;
@@ -156,6 +159,13 @@ export default function App() {
       }
 
       const mods = getScoutModifiers(outOfEnergy ? null : assignedScout?.id, prev);
+      
+      // Calculate active task count for multitasking calculation
+      let multitaskingMultiplier = 1;
+      if (!outOfEnergy && assignedScout && assignedScout.assignedTo.length > 1) {
+         multitaskingMultiplier = 1.0 + (assignedScout.assignedTo.length - 1) * 0.2; // 20% longer per extra task
+      }
+
       const now = Date.now();
       
       const updatedActivities = prev.activities.map(a => {
@@ -164,7 +174,7 @@ export default function App() {
           ...a,
           status: 'active' as ActivityStatus,
           startedAt: now,
-          endsAt: now + (a.durationSeconds * mods.speedMulti) * 1000,
+          endsAt: now + (a.durationSeconds * mods.speedMulti * multitaskingMultiplier) * 1000,
         };
       });
 
@@ -212,16 +222,22 @@ export default function App() {
       if (!act || act.status !== 'ready') return prev;
 
       const actCost = ACTIVITIES_ENERGY_COST[activityId] || 10;
-      const assignedScout = prev.scouts.find(s => s.assignedTo === activityId);
+      const assignedScout = prev.scouts.find(s => s.assignedTo.includes(activityId));
       let outOfEnergy = assignedScout ? (assignedScout.energy + actCost < actCost) : false; // already paid
 
       const mods = getScoutModifiers(outOfEnergy ? null : assignedScout?.id, prev);
+      
+      let multitaskingBonus = 1;
+      if (!outOfEnergy && assignedScout && assignedScout.assignedTo.length > 1) {
+         multitaskingBonus = 1.0 + (assignedScout.assignedTo.length - 1) * 0.15; // 15% reward bonus per extra task
+      }
+
       const now = Date.now();
 
       // Calc rewards
-      let earnedCoins = Math.floor((act.reward.coins ?? 0) * mods.coinsMulti);
-      let earnedWood = Math.floor((act.reward.wood ?? 0) * mods.woodMulti);
-      let earnedFood = Math.floor((act.reward.food ?? 0) * mods.foodMulti);
+      let earnedCoins = Math.floor((act.reward.coins ?? 0) * mods.coinsMulti * multitaskingBonus);
+      let earnedWood = Math.floor((act.reward.wood ?? 0) * mods.woodMulti * multitaskingBonus);
+      let earnedFood = Math.floor((act.reward.food ?? 0) * mods.foodMulti * multitaskingBonus);
       let earnedGems = act.reward.gems ?? 0;
       
       const surprise = applyRandomSurpriseReward(act.reward);
@@ -464,7 +480,6 @@ export default function App() {
               <div className="flex-shrink-0">
                 <CampLevel game={game} onUpgrade={handleUpgradeCamp} />
               </div>
-              <ActionGuidance game={game} />
               <div className="px-4 mb-2 flex-1 min-h-0 relative z-10 flex flex-col">
                 <ActivitiesMap activities={game.activities} scouts={game.scouts} onStart={handleStartActivity} onCollect={handleCollectActivity} onSpeedUp={handleSpeedUpActivity} onAssign={handleAssignScout} />
               </div>
@@ -480,7 +495,7 @@ export default function App() {
           )}
 
           {activeTab === 'Scouts' && (
-            <ScoutsTab scouts={game.scouts} />
+            <ScoutsTab scouts={game.scouts} activities={game.activities} />
           )}
 
           {activeTab === 'Shop' && (
@@ -488,11 +503,20 @@ export default function App() {
           )}
 
           <div className="flex-shrink-0">
-            <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+            <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} game={game} />
           </div>
         </div>
       </div>
       
+      {assigningActivityId && (
+        <AssignScoutModal 
+          game={game}
+          activityId={assigningActivityId}
+          onClose={() => setAssigningActivityId(null)}
+          onAssign={(scoutId) => assignScoutToTask(assigningActivityId, scoutId)}
+        />
+      )}
+
       {/* Reset Confirmation Dialog */}
       {showResetConfirm && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-4">
@@ -578,47 +602,6 @@ function OfflineItem({ emoji, val, color }: any) {
     <div className="flex items-center justify-center gap-2 bg-[#F5EAD4] p-2 rounded-[12px] border border-[#E8D9BB] shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)]">
       <span className="text-[18px]">{emoji}</span>
       <span className={`text-[16px] font-black ${color}`}>+{val}</span>
-    </div>
-  );
-}
-
-function ActionGuidance({ game }: any) {
-  let suggestion = "";
-  let icon = "💡";
-
-  // Check 1: Unclaimed Missions or Chest
-  if (game.missions.some((m: any) => m.status === 'claim')) {
-    suggestion = "You have completed missions waiting to be claimed!";
-    icon = "🎯";
-  } else if (!game.dailyChestClaimed && game.missions.filter((m: any) => m.type === 'daily' && m.status === 'done').length >= game.missions.filter((m: any) => m.type === 'daily').length) {
-    suggestion = "Your Daily Chest is ready to open!";
-    icon = "🧰";
-  } 
-  // Check 2: Ready activities
-  else if (game.activities.some((a: any) => a.status === 'done')) {
-    suggestion = "Resources are ready to collect at camp!";
-    icon = "✋";
-  }
-  // Check 3: Idle activities that CAN be started (ignoring energy strictly for simplified hint)
-  else if (game.activities.some((a: any) => a.status === 'idle')) {
-    suggestion = "Start your idle activities to keep camp busy!";
-    icon = "🏕️";
-  }
-  // Check 4: Unassigned scouts
-  else if (game.scouts.some((s: any) => !s.locked && s.assignedTo === null)) {
-    suggestion = "You have unassigned scouts resting.";
-    icon = "⛺";
-  }
-  // Fallback
-  else {
-    suggestion = "Keep progressing! Upgrade activities to boost rewards.";
-    icon = "✨";
-  }
-
-  return (
-    <div className="mx-4 mb-2 lg:mb-3 shrink-0 rounded-xl bg-gradient-to-r from-[#FEFCF3] to-[#F1F6EC] p-2.5 px-3 border border-[#E2D2B6] shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex items-center gap-3">
-      <span className="text-[18px] bg-[#F2F7E6] p-1.5 rounded-lg border border-[#DCD1AD] shadow-sm leading-none shrink-0">{icon}</span>
-      <p className="text-[#304811] text-[12px] font-bold leading-tight flex-1">{suggestion}</p>
     </div>
   );
 }
@@ -762,15 +745,22 @@ function ActivityCard({ act, scouts, onStart, onCollect, onSpeedUp, onAssign }: 
   const { id, emoji, status, endsAt, name, reward, xpReward } = act;
   const isActive = status === 'active';
   const isLocked = status === 'locked';
-  const assignedScout = scouts?.find(s => s.assignedTo === id);
+  const assignedScout = scouts?.find(s => s.assignedTo.includes(id));
   const [showReward, setShowReward] = useState(false);
   const [taps, setTaps] = useState<{id: string, x: number, y: number}[]>([]);
   
   const handleClick = (e: React.MouseEvent) => {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(15);
+    
     if (status === 'idle') {
+      if (!assignedScout) {
+        if (onAssign) onAssign(id, e);
+        return;
+      }
       onStart(id);
     } else if (status === 'ready') {
       setShowReward(true);
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate([20, 40, 20]);
       onCollect(id, e);
       setTimeout(() => setShowReward(false), 2000);
     } else if (status === 'active' && onSpeedUp) {
@@ -790,8 +780,31 @@ function ActivityCard({ act, scouts, onStart, onCollect, onSpeedUp, onAssign }: 
       exit={{ opacity: 0, scale: 0.5 }}
       whileTap={isLocked || status === 'resting' ? {} : { scale: 0.92 }}
       onClick={handleClick} 
-      className={`relative flex flex-col items-center justify-center bg-[#FEFCF3] w-full min-h-[88px] h-fit pb-1 rounded-[18px] shadow-sm border ${isActive ? 'border-[#78A944] ring-4 ring-[#78A944]/20 bg-white z-10' : 'border-[#E2D2B6] hover:border-[#D1B88B] hover:bg-white'} ${(isLocked || status === 'resting') ? 'opacity-70 grayscale-[40%] hover:opacity-70 cursor-not-allowed' : 'cursor-pointer'} transition-all group pt-1`}
+      className={`relative flex flex-col items-center justify-center bg-[#FEFCF3] w-full min-h-[88px] h-fit pb-1 rounded-[18px] shadow-sm border ${isActive ? 'border-[#78A944] ring-4 ring-[#78A944]/20 bg-white z-10' : 'border-[#E2D2B6] hover:border-[#D1B88B] hover:bg-white'} ${status === 'ready' ? 'border-[#D58C28] ring-2 ring-[#D58C28]/40 bg-[#FFFDF8]' : ''} ${(isLocked || status === 'resting') ? 'opacity-70 grayscale-[40%] hover:opacity-70 cursor-not-allowed' : 'cursor-pointer'} transition-all group pt-1`}
     >
+      {status === 'ready' && (
+        <motion.div 
+          className="absolute -inset-1 rounded-[20px] bg-gradient-to-tr from-[#D58C28]/0 to-[#D58C28]/20 z-0 pointer-events-none"
+          animate={{ opacity: [0.2, 0.6, 0.2] }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+        />
+      )}
+      <AnimatePresence>
+        {showReward && (
+          <motion.div 
+            initial={{ opacity: 1, y: 0, scale: 0.5 }}
+            animate={{ opacity: 0, y: -50, scale: 1.2 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.2, ease: "easeOut" }}
+            className="absolute top-[-25px] left-1/2 -translate-x-1/2 flex flex-col items-center justify-center whitespace-nowrap z-50 pointer-events-none drop-shadow-md"
+          >
+            {reward?.coins && <span className="text-[#D58C28] font-black text-[15px] leading-tight">+{reward.coins}🪙</span>}
+            {reward?.wood && <span className="text-[#8B5A2B] font-black text-[15px] leading-tight">+{reward.wood}🪵</span>}
+            {reward?.food && <span className="text-[#78A944] font-black text-[15px] leading-tight">+{reward.food}🍄</span>}
+            <span className="text-[#3A5025] font-black text-[13px] leading-tight">+{xpReward}✨</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Scout Assignment Button */}
       {!isLocked && (
         <button
@@ -820,23 +833,6 @@ function ActivityCard({ act, scouts, onStart, onCollect, onSpeedUp, onAssign }: 
             -1s!
           </motion.div>
         ))}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showReward && (
-          <motion.div 
-            initial={{ opacity: 1, y: 0, scale: 0.5 }}
-            animate={{ opacity: 0, y: -40, scale: 1.2 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.2, ease: "easeOut" }}
-            className="absolute top-[-20px] left-1/2 -translate-x-1/2 flex flex-col items-center whitespace-nowrap z-50 pointer-events-none"
-          >
-            {reward?.coins && <span className="text-[#D58C28] font-black text-[14px] drop-shadow-md">+{reward.coins}🪙</span>}
-            {reward?.wood && <span className="text-[#8B5A2B] font-black text-[14px] drop-shadow-md">+{reward.wood}🪵</span>}
-            {reward?.food && <span className="text-[#78A944] font-black text-[14px] drop-shadow-md">+{reward.food}🍒</span>}
-            <span className="text-[#3A5025] font-black text-[12px] drop-shadow-md">+{xpReward}✨</span>
-          </motion.div>
-        )}
       </AnimatePresence>
       
       {/* Tiny corner indicators */}
@@ -899,9 +895,13 @@ function ActivityCard({ act, scouts, onStart, onCollect, onSpeedUp, onAssign }: 
       </AnimatePresence>
       
       {/* Centered Emoji */}
-      <span className={`text-[28px] drop-shadow-md mb-0.5 ${isLocked ? 'opacity-60' : ''}`}>
+      <motion.span 
+        animate={status === 'ready' ? { scale: [1, 1.15, 1], rotate: [0, -5, 5, 0] } : (status === 'active' ? { y: [0, -2, 0] } : {})}
+        transition={status === 'ready' ? { duration: 1.2, repeat: Infinity, ease: 'easeInOut' } : (status === 'active' ? { duration: 2, repeat: Infinity } : {})}
+        className={`text-[28px] drop-shadow-md mb-0.5 pointer-events-none ${isLocked ? 'opacity-60' : ''}`}
+      >
         {emoji}
-      </span>
+      </motion.span>
       
       {/* Text Detail */}
       <span className={`text-[9.5px] font-extrabold leading-tight tracking-tight text-center px-1 truncate w-[85%] ${isLocked ? 'text-[#8C8677]' : 'text-[#304811]'}`}>
@@ -1213,7 +1213,7 @@ const SCOUT_VISUALS: Record<string, any> = {
   s5: { emoji: '🦦', color: 'from-[#5D9C88] to-[#2A6653]', bg: 'bg-[#7EC2AD]', border: 'border-[#2A6653]' },
 };
 
-function ScoutsTab({ scouts }: any) {
+function ScoutsTab({ scouts, activities }: any) {
   const displayScouts = Array.from({ length: 6 }).map((_, i) => scouts[i] ? { ...scouts[i], ...SCOUT_VISUALS[scouts[i].id] } : { locked: true, name: 'Empty', role: 'Vacant', level: 0, emoji: '+' });
 
   return (
@@ -1263,17 +1263,26 @@ function ScoutsTab({ scouts }: any) {
                      </div>
                  ) : (
                      <div className="flex-1 min-w-0 flex flex-col justify-center relative">
-                         {scout.assignedTo && (
-                             <span className="absolute right-0 bottom-0 text-[10px] font-black text-[#E4A034] bg-[#FFF9EA] px-2 py-0.5 rounded-md border border-[#E9DBB8] shrink-0 uppercase tracking-wide">
-                               Working
-                             </span>
-                         )}
                          <div className="flex justify-between items-start mb-0.5">
                              <h4 className="font-extrabold text-[#2A4418] text-[16px] leading-tight truncate pr-2">{scout.name}</h4>
                              <div className="bg-[#FEFCF3] border border-[#E2D2B6] text-[#5C8925] font-extrabold text-[10px] px-1.5 py-0.5 rounded-md leading-none shrink-0 shadow-sm mt-0.5">L.{scout.level}</div>
                          </div>
                          <span className="font-bold text-[#A48F70] text-[11.5px] block leading-none mb-1.5 truncate uppercase tracking-wide">{scout.role}</span>
-                         <span className="text-[#78A944] bg-[#F1F6EC] text-[10.5px] font-bold px-2 py-1 rounded inline-block w-fit truncate max-w-full">✨ {scout.ability}</span>
+                         <div className="flex items-center gap-1.5 justify-between">
+                             <span className="text-[#78A944] bg-[#F1F6EC] text-[10.5px] font-bold px-2 py-1 rounded inline-block w-fit truncate flex-shrink">✨ {scout.ability}</span>
+                             {scout.assignedTo && scout.assignedTo.length > 0 && (
+                                <div className="flex gap-1 bg-[#FFF9EA] rounded-full px-1.5 py-0.5 border border-[#E9DBB8] items-center shrink-0 shadow-sm">
+                                   {scout.assignedTo.map((actId: string) => {
+                                      const act = activities?.find((a: any) => a.id === actId);
+                                      return (
+                                         <span key={actId} className="text-[12px] leading-none drop-shadow-sm flex items-center" title={act?.name}>
+                                            {act?.emoji || '🏕️'}
+                                         </span>
+                                      );
+                                   })}
+                                </div>
+                             )}
+                         </div>
                      </div>
                  )}
              </div>
@@ -1381,11 +1390,18 @@ function ShopTab({ items, game, onPurchase }: any) {
   );
 }
 
-function BottomNav({ activeTab, setActiveTab }: any) {
+function BottomNav({ activeTab, setActiveTab, game }: any) {
+  // Check conditions for badges
+  const hasCompletableMissions = game && game.missions.some((m: any) => m.status === 'claim');
+  const chestReady = game && !game.dailyChestClaimed && game.missions.filter((m: any) => m.type === 'daily' && m.status === 'done').length >= game.missions.filter((m: any) => m.type === 'daily').length;
+  const showMissionsBadge = hasCompletableMissions || chestReady;
+
+  const showCampBadge = game && (game.activities.some((a: any) => a.status === 'ready') || game.scouts.some((s: any) => !s.locked && s.assignedTo.length === 0));
+
   return (
     <div className="w-full bg-[#F5EAD4] flex justify-between items-center px-4 py-2 flex-grow-0 pb-5 md:pb-3 md:rounded-b-[36px] z-30 border-t border-[#E8D9BB] relative">
-      <NavItem icon={<Tent className="w-[20px] h-[20px]" fill="currentColor" strokeWidth={1.5} />} label="Camp" active={activeTab === 'Camp'} onClick={() => setActiveTab('Camp')} />
-      <NavItem icon={<ClipboardList className="w-[20px] h-[20px]" strokeWidth={2.2} />} label="Missions" active={activeTab === 'Missions'} onClick={() => setActiveTab('Missions')} />
+      <NavItem icon={<Tent className="w-[20px] h-[20px]" fill="currentColor" strokeWidth={1.5} />} label="Camp" active={activeTab === 'Camp'} onClick={() => setActiveTab('Camp')} showBadge={showCampBadge} />
+      <NavItem icon={<ClipboardList className="w-[20px] h-[20px]" strokeWidth={2.2} />} label="Missions" active={activeTab === 'Missions'} onClick={() => setActiveTab('Missions')} showBadge={showMissionsBadge} />
       <NavItem icon={<Award className="w-[20px] h-[20px]" strokeWidth={2.2} />} label="Badges" active={activeTab === 'Badges'} onClick={() => setActiveTab('Badges')} />
       <NavItem icon={<User className="w-[20px] h-[20px]" strokeWidth={2.2} />} label="Scouts" active={activeTab === 'Scouts'} onClick={() => setActiveTab('Scouts')} />
       <NavItem icon={<Store className="w-[20px] h-[20px]" strokeWidth={2.2} />} label="Shop" active={activeTab === 'Shop'} onClick={() => setActiveTab('Shop')} />
@@ -1393,7 +1409,7 @@ function BottomNav({ activeTab, setActiveTab }: any) {
   );
 }
 
-function NavItem({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active?: boolean; onClick?: () => void }) {
+function NavItem({ icon, label, active, onClick, showBadge }: { icon: React.ReactNode; label: string; active?: boolean; onClick?: () => void; showBadge?: boolean }) {
   return (
     <motion.div 
       whileTap={{ scale: 0.85 }}
@@ -1407,12 +1423,101 @@ function NavItem({ icon, label, active, onClick }: { icon: React.ReactNode; labe
         />
       )}
       <div className="relative z-10 flex flex-col items-center gap-[4px] mt-0.5">
-        <motion.div animate={active ? { y: -2 } : { y: 0 }}>
+        <motion.div relative="true" animate={active ? { y: -2 } : { y: 0 }}>
           {icon}
+          {showBadge && !active && (
+             <span className="absolute -top-1 -right-1 w-2 h-2 bg-[#E45E34] border-[1.5px] border-[#F5EAD4] rounded-full" />
+          )}
         </motion.div>
         <span className="text-[9.5px] font-extrabold tracking-wide">{label}</span>
       </div>
     </motion.div>
+  );
+}
+
+function AssignScoutModal({ game, activityId, onClose, onAssign }: any) {
+  const act = game.activities.find((a: any) => a.id === activityId);
+  const actCost = ACTIVITIES_ENERGY_COST[activityId] || 10;
+
+  return (
+    <div className="absolute inset-0 z-50 flex items-center justify-center p-4">
+       <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={onClose}></div>
+       <div className="bg-[#FEFCF3] relative z-10 w-full max-w-[340px] rounded-[24px] p-5 shadow-2xl border-2 border-[#DBC19C] max-h-[80vh] flex flex-col">
+          <div className="flex justify-between items-center mb-4 shrink-0">
+             <h3 className="font-extrabold text-[18px] text-[#2A4418]">Assign Scout</h3>
+             <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-[#EAE0CB] text-[#7A6C56] rounded-full hover:bg-[#DBC19C]">
+                <X className="w-4 h-4" strokeWidth={3} />
+             </button>
+          </div>
+          
+          <div className="mb-4 shrink-0 px-3 py-2 bg-[#F2F7E6] border border-[#DCD1AD] rounded-[16px] flex flex-col gap-2">
+             <div className="flex items-center gap-3">
+               <span className="text-[20px] bg-white p-1.5 rounded-lg shadow-sm leading-none shrink-0 border border-[#DBC19C]">{act?.icon || '🏕️'}</span>
+               <div>
+                 <h4 className="font-bold text-[#304811] leading-tight capitalize">{act?.name}</h4>
+                 <p className="text-[11px] text-[#557F26] font-bold">Energy Cost: {actCost}⚡</p>
+               </div>
+             </div>
+             <div className="bg-white/60 p-2 rounded-lg text-[10px] text-[#557F26] font-medium leading-tight">
+               <strong className="text-[#304811]">Multitasking:</strong> Assigning multiple tasks makes time <span className="text-[#E4A034] font-bold">+20% longer</span>, but adds a <span className="text-[#5687C2] font-bold">+15% reward bonus</span> per extra task!
+             </div>
+          </div>
+
+          <div className="overflow-y-auto min-h-0 flex-1 flex flex-col gap-2 relative">
+             {game.scouts.map((scout: any) => {
+                if (scout.locked) return null;
+                const isAssigned = scout.assignedTo.includes(activityId);
+                const isTired = scout.energy < actCost;
+                const matchBonus = scout.preferredActivities.includes(act?.type);
+                return (
+                  <div key={scout.id} className={`flex items-center justify-between p-3 border-2 rounded-[16px] transition-colors ${isAssigned ? 'border-[#78A944] bg-[#F2F7E6]' : 'border-[#E2D2B6] bg-white hover:border-[#DBC19C]'}`}>
+                     <div className="flex items-center gap-3 w-0 flex-1">
+                        <div className="w-[40px] h-[40px] relative shrink-0">
+                           <div className={`absolute inset-0 rounded-full border-2 ${isAssigned ? 'border-[#78A944] bg-white' : 'border-[#E2D2B6] bg-[#F5EAD4]'}`}></div>
+                           <span className="absolute inset-0 flex items-center justify-center text-[22px] z-10 leading-none pb-0.5">{scout.emoji}</span>
+                           <div className="absolute -bottom-1 -right-1 bg-black/80 rounded-full px-1 py-[2px] z-20 flex items-center shadow-sm">
+                             <span className="text-white text-[8px] font-bold tracking-tighter leading-none">{Math.floor(scout.energy)}⚡</span>
+                           </div>
+                        </div>
+                        <div className="flex-1 w-0">
+                           <div className="flex flex-wrap items-center gap-1.5 mb-0.5 w-full">
+                             <span className="font-extrabold text-[14px] text-[#304811] shrink-0">{scout.name}</span>
+                             {scout.assignedTo.length > 0 && (
+                               <div className="flex gap-0.5 bg-[#FFF9EA] rounded-full px-1 py-[1px] border border-[#E9DBB8] items-center shrink-0 shadow-sm ml-1">
+                                  {scout.assignedTo.map((actId: string) => {
+                                     const assignedAct = game.activities?.find((a: any) => a.id === actId);
+                                     return (
+                                        <span key={actId} className="text-[10px] leading-none drop-shadow-sm flex items-center" title={assignedAct?.name}>
+                                           {assignedAct?.emoji || '🏕️'}
+                                        </span>
+                                     );
+                                  })}
+                               </div>
+                             )}
+                             {matchBonus && <span className="bg-[#5687C2] text-white text-[9px] font-bold px-1.5 py-[1px] rounded-full shrink-0">Fit</span>}
+                           </div>
+                           <p className="text-[#8C7A5E] text-[10px] font-bold leading-tight line-clamp-1">{scout.ability}</p>
+                        </div>
+                     </div>
+                     <button
+                        disabled={isTired && !isAssigned}
+                        onClick={() => {
+                           if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(10);
+                           onAssign(isAssigned ? null : scout.id);
+                        }}
+                        className={`shrink-0 ml-2 text-[12px] font-extrabold px-3 py-1.5 rounded-[12px] border-[1.5px] transition-all shadow-sm ${
+                           isAssigned ? 'bg-transparent border-[#78A944] text-[#78A944] hover:bg-[#F2F7E6] active:scale-95' : 
+                           (isTired ? 'bg-[#EAE0CB] border-[#DBC19C] text-[#A49C8B] opacity-50' : 'bg-[#E4A034] hover:bg-[#D58C28] text-white border-[#C96C11] active:scale-95')
+                        }`}
+                     >
+                        {isAssigned ? 'Remove' : (isTired ? 'Tired' : 'Select')}
+                     </button>
+                  </div>
+                );
+             })}
+          </div>
+       </div>
+    </div>
   );
 }
 
